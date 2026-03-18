@@ -1,6 +1,5 @@
-FROM public.ecr.aws/lambda/python:3.13
+FROM public.ecr.aws/lambda/python:3.12
 
-# eccodes se instala vía pip — trae la librería C incluida, no necesita dnf
 COPY requirements.txt .
 RUN pip install --no-cache-dir eccodes -r requirements.txt
 
