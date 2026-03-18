@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify (Docker build + pytest + app/main.py)
+        run: make docker-verify
+
+      - name: Check for workspace changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Error: Workspace modified by verification. Run 'make docker-verify' locally and commit the changes."
+            git status --porcelain
+            exit 1
+          fi

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "science-project"
+version = "0.1.0"
+description = "Reproducible scientific Python scaffold"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8"
+]
+docs = [
+  "sphinx>=7",
+  "sphinx-rtd-theme>=2"
+]
+dev = [
+  "science-project[test,docs]"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.template]
+module_name = "science_lib"
+project_title = "Science Project"
+author = "Science Team"
