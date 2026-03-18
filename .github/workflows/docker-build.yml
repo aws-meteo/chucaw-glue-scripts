@@ -1,0 +1,21 @@
+name: CI Docker Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-test:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Test de construcción Docker (Dry Run)
+        run: |
+          echo "Construyendo la imagen para verificar que no hay errores..."
+          docker build -t chucaw-pangu-preprocessor:latest .
