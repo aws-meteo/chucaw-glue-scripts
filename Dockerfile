@@ -1,23 +1,14 @@
-# Usamos una versión ligera y oficial de Python
-FROM python:3.12-slim
+FROM public.ecr.aws/lambda/python:3.13
 
-# 1. Instalar dependencias del sistema operativo (CRÍTICO para cfgrib)
-RUN apt-get update && apt-get install -y \
-    libeccodes-dev \
-    && rm -rf /var/lib/apt/lists/*
+# 1. Instalar eccodes (Amazon Linux usa dnf, no apt-get)
+RUN dnf install -y eccodes && dnf clean all
 
-# 2. Configurar el directorio de trabajo dentro del contenedor
-WORKDIR /app
-
-# 3. Copiar solo el archivo de requerimientos primero (optimiza la caché de Docker)
+# 2. Copiar e instalar dependencias Python
 COPY requirements.txt .
-
-# 4. Instalar las dependencias de Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Copiar nuestro script y código
-COPY src/ /app/src/
+# 3. Copiar tu código al directorio raíz de Lambda
+COPY src/ ${LAMBDA_TASK_ROOT}/src/
 
-# 6. Comando por defecto al encender el contenedor
-# (Si luego usamos AWS Lambda, cambiaremos esto ligeramente)
-CMD ["python", "src/pangu_prep_pipeline.py"]
+# 4. Handler: carpeta.archivo.función
+CMD [ "src.pangu_prep_pipeline.lambda_handler" ]
