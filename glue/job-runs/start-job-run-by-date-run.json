@@ -1,0 +1,8 @@
+{
+  "JobName": "chucaw-bronze-to-platinum-parquet",
+  "Arguments": {
+    "--BRONZE_PREFIX": "ecmwf",
+    "--DATE": "20260330",
+    "--RUN": "00z"
+  }
+}
