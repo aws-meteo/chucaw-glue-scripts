@@ -1,0 +1,38 @@
+name: Build Glue Wheel Artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - development
+    paths:
+      - "pyproject.toml"
+      - "requirements-glue.txt"
+      - "scripts/build_glue_artifacts.ps1"
+      - "src/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build project wheel and dependency wheels
+        run: |
+          python -m pip install --upgrade pip build wheel
+          python -m build --wheel
+          python -m pip wheel --wheel-dir dist -r requirements-glue.txt
+          cd dist
+          zip -r glue-dependencies.gluewheels.zip ./*.whl
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: glue-wheel-artifacts
+          path: dist/*
