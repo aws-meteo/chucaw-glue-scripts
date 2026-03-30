@@ -1,74 +1,146 @@
-# python-science-template
+# chucaw-pangu-preprocessor
 
-This project follows the Mirror-Environment Pattern: your development environment (DevContainer) matches your testing environment (GitHub Actions) by running verification inside the same Docker image.
+Procesamiento de GRIB ECMWF para Lakehouse con AWS Glue.
 
-## Quickstart (Docker verification)
+## Estrategia de ramas
 
-The project uses a **Clean Verification Flow** to ensure reproducibility and avoid polluting the host workspace with root-owned artifacts (like `__pycache__` or `.pytest_cache`).
+- `ecmwf_to_bronze`: conserva el enfoque anterior (Lambda + Docker/ECR para ingesta).
+- `development`: nueva línea de trabajo para ETL en Glue (Python Shell) desde bronce hacia plata.
 
-### 1. Build the image
+## Nueva arquitectura (development)
 
-```bash
-make docker-build
+1. Los GRIB llegan a capa bronce en S3.
+2. Jobs de AWS Glue Python Shell leen GRIB desde bronce.
+3. Se aplica la misma base de limpieza/normalización con `xarray` y `cfgrib`.
+4. Salidas a capa plata:
+1. formato Pangu (`input_surface.npy`, `input_upper.npy`)
+2. formato analítico Parquet (`surface`, `upper`)
+
+## Estructura principal
+
+- `src/chucaw_preprocessor/ecmwf.py`: lógica común de lectura, limpieza y conversión.
+- `scripts/glue_jobs/pangu_to_silver.py`: job Glue para salida Pangu.
+- `scripts/glue_jobs/parquet_to_silver.py`: job Glue para salida Parquet.
+- `pyproject.toml`: configuración para construir wheel del proyecto.
+- `requirements-glue.txt`: dependencias a empaquetar para Glue.
+- `scripts/build_glue_artifacts.ps1`: construcción de wheel + wheels de dependencias + zip `.gluewheels.zip`.
+
+## Entorno local (`.venv`)
+
+Se debe trabajar con un entorno local en la carpeta `.venv` usando las versiones fijadas en el repo.
+
+### 1) Crear `.venv` local
+
+Con `conda`:
+
+```powershell
+conda create --prefix .venv python=3.12 pip -y
 ```
 
-### 2. Run verification
+Si `conda` no está en `PATH`:
 
-The standard verification target mounts your source code as **read-only** and performs the installation and testing inside a temporary directory in the container:
-
-```bash
-make docker-verify
+```powershell
+& "C:\ProgramData\miniconda3\Scripts\conda.exe" create --prefix .venv python=3.12 pip -y
 ```
 
-This command:
-- Mounts the current directory as `:ro`.
-- Copies the source to `/tmp/work` to avoid permission issues during installation.
-- Creates a virtual environment in `/tmp/venv`.
-- Installs the package with `[test]` extras.
-- Runs tests and the entrypoint.
+### 2) Activar entorno
 
-### Dependency Extras
-- `pip install '.[test]'`: Minimal dependencies for running tests (used in CI).
-- `pip install '.[dev]'`: Full development environment, including documentation tools (Sphinx) and testing utilities.
-
-## Design Rationale: Permission & CI Hardening
-
-This template is designed to be "CI-native" by avoiding common pitfalls with Docker permissions and volume mounts.
-
-### Why we avoid `docker run --user $(id -u):$(id -g)`
-While mapping the host UID/GID to the container is a common local development pattern, we avoid it in CI for several reasons:
-1.  **Identity Mismatch**: In environments like GitHub Actions, the runner UID (typically 1001) may not exist in the container's `/etc/passwd`, leading to "I have no name!" errors and broken tool behavior.
-2.  **Home Directory Access**: Many tools (pip, git, etc.) expect a valid `$HOME`. If you force a UID that doesn't have a home directory defined in the image, these tools may fail or try to write to `/`, which is restricted.
-3.  **Portability**: The template should work regardless of the host's UID. By running as the container's internal user (`app`) and isolating all write operations to `/tmp`, we ensure consistent behavior across local and CI environments.
-
-### Hardening with `HOME=/tmp` and `PYTHONNOUSERSITE=1`
-To make the container execution truly ephemeral and secure:
--   **`HOME=/tmp`**: We override the home directory to `/tmp`. Since `/tmp` is world-writable, this guarantees that any tool attempting to write configuration or cache to `~` will succeed without needing complex volume permission management.
--   **`PYTHONNOUSERSITE=1`**: This prevents Python from loading packages from the user-specific site-packages directory (usually `~/.local`). This ensures that the environment is strictly defined by the virtual environment created during verification, preventing "poisoning" from the container's global state.
-
-### Debugging non-root containers
-If you need to use a different non-root user or if you encounter permission issues:
-1.  Use `make docker-verify-rw` to run with a read-write mount and inspect the artifacts.
-2.  Verify that your container user has write access to `/tmp`.
-3.  Check if your source code contains pre-existing `*.egg-info` or `__pycache__` directories owned by `root`, which might interfere with the `cp -a` command or tool execution.
-
-## Troubleshooting
-
-### Persistence of root-owned files
-If you previously ran commands that created files inside the container with a read-write mount, they might be owned by `root` on your host. Use this to clean them:
-
-```bash
-make clean
+```powershell
+conda activate .\.venv
 ```
 
-### Failures in Read-Only mode
-Some legacy Python packaging tools might try to write to the source directory even during installation (e.g., updating `src/*.egg-info`). 
+### 3) Instalar dependencias del proyecto
 
-If `make docker-verify` fails due to read-only restrictions, you can use the debug target which uses a read-write mount:
-
-```bash
-make docker-verify-rw
+```powershell
+python -m pip install -r requirements.txt
 ```
-*Note: This may create root-owned artifacts in your workspace.*
 
-CI runs the same `make docker-verify` step.
+### 4) Verificar versión de Python y paquetes
+
+```powershell
+python --version
+python -m pip list
+```
+
+## Dependencias relevantes para Glue
+
+Dependencias nuevas para el escenario Glue/Parquet sobre la base existente:
+
+- `pandas`
+- `pyarrow`
+
+Se mantienen librerías para GRIB/xarray:
+
+- `xarray`
+- `cfgrib`
+- `eccodes`
+- `numpy`
+- `boto3`
+
+## Construcción de artefactos (wheel + gluewheels)
+
+```powershell
+./scripts/build_glue_artifacts.ps1
+```
+
+Genera en `dist/`:
+
+- wheel del proyecto `chucaw_preprocessor-*.whl`
+- wheels de dependencias
+- `glue-dependencies.gluewheels.zip`
+
+## Configuración recomendada en AWS Glue
+
+Basado en la guía oficial de AWS Glue para librerías Python:
+
+- subir wheel del proyecto y `glue-dependencies.gluewheels.zip` a S3
+- usar `--additional-python-modules` con rutas S3 a wheels/zip
+- para enfoque determinista en producción, preferir artefactos congelados (wheel/zip) sobre instalación dinámica desde PyPI
+
+Ejemplo de argumentos de job:
+
+```text
+--additional-python-modules s3://<bucket>/artifacts/glue-dependencies.gluewheels.zip,s3://<bucket>/artifacts/chucaw_preprocessor-0.1.0-py3-none-any.whl
+--python-modules-installer-option --no-index
+```
+
+## Parámetros de ejecución de jobs
+
+Parámetros comunes esperados por ambos scripts:
+
+- `--BRONZE_BUCKET`
+- `--BRONZE_KEY`
+- `--SILVER_BUCKET`
+- `--SILVER_PREFIX`
+- `--DATE` (formato `YYYYMMDD`)
+- `--RUN` (ej. `00z`)
+- `--TMP_DIR` (opcional, default `/tmp`)
+
+### Job: Pangu
+
+Script: `scripts/glue_jobs/pangu_to_silver.py`
+
+Salida en S3 (plata), particionada:
+
+`<SILVER_PREFIX>/year=YYYY/month=MM/day=DD/run=RRz/input_surface.npy`
+
+`<SILVER_PREFIX>/year=YYYY/month=MM/day=DD/run=RRz/input_upper.npy`
+
+### Job: Parquet
+
+Script: `scripts/glue_jobs/parquet_to_silver.py`
+
+Salida en S3 (plata), particionada:
+
+`<SILVER_PREFIX>/year=YYYY/month=MM/day=DD/run=RRz/dataset=surface/part-000.parquet`
+
+`<SILVER_PREFIX>/year=YYYY/month=MM/day=DD/run=RRz/dataset=upper/part-000.parquet`
+
+## Nota de particiones
+
+Para consultas eficientes, la partición se construye por:
+
+- `year`
+- `month`
+- `day`
+- `run`
