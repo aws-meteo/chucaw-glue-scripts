@@ -1,3 +1,10 @@
+"""Glue Python Shell job to transform Bronze GRIB into Platinum Parquet.
+
+This module resolves a GRIB source key from explicit arguments or by discovery,
+builds normalized surface/upper dataframes, and uploads partitioned parquet files
+to the Platinum bucket.
+"""
+
 import re
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +27,18 @@ DEFAULT_PLATINUM_PREFIX = "ecmwf/parquet"
 
 
 def _normalize_run(run_value: str) -> str:
+    """Normalize run values to ECMWF format.
+
+    Parameters
+    ----------
+    run_value : str
+        Input run value such as ``"00"`` or ``"00z"``.
+
+    Returns
+    -------
+    str
+        Normalized run value in ``XXz`` format.
+    """
     run_value = (run_value or "").strip().lower()
     if not run_value:
         return "00z"
@@ -27,6 +46,18 @@ def _normalize_run(run_value: str) -> str:
 
 
 def _extract_date_run_from_key(bronze_key: str) -> tuple[str, str]:
+    """Extract date and run from a Bronze S3 key.
+
+    Parameters
+    ----------
+    bronze_key : str
+        S3 object key pointing to a GRIB file.
+
+    Returns
+    -------
+    tuple[str, str]
+        Tuple with ``(date_yyyymmdd, run_xxz)``.
+    """
     date_match = re.search(r"(20\d{6})", bronze_key)
     run_match = re.search(r"/(00z|06z|12z|18z)/", bronze_key.lower())
     date_str = date_match.group(1) if date_match else datetime.utcnow().strftime("%Y%m%d")
@@ -42,6 +73,7 @@ def _candidate_key_from_date_run(bronze_prefix: str, date_str: str, run_str: str
 
 
 def _find_latest_grib_key(bronze_bucket: str, bronze_prefix: str) -> str:
+    """Find the latest ``.grib2`` object in a Bronze prefix."""
     s3 = boto3.client("s3")
     paginator = s3.get_paginator("list_objects_v2")
     latest_key = ""
@@ -67,6 +99,13 @@ def _find_latest_grib_key(bronze_bucket: str, bronze_prefix: str) -> str:
 
 
 def _resolve_bronze_key(args: dict[str, str]) -> str:
+    """Resolve source GRIB key from arguments.
+
+    Resolution order:
+    1. ``--BRONZE_KEY``
+    2. ``--DATE`` + ``--RUN`` (build candidate path)
+    3. Latest ``.grib2`` in ``--BRONZE_PREFIX``
+    """
     bronze_key = (args.get("BRONZE_KEY") or "").strip()
     bronze_prefix = (args.get("BRONZE_PREFIX") or DEFAULT_BRONZE_PREFIX).strip("/")
     date_str = (args.get("DATE") or "").strip()
@@ -89,6 +128,18 @@ def _partition_prefix(base_prefix: str, date_str: str, run_str: str) -> str:
 
 
 def run_job(args: dict[str, str]) -> dict[str, str]:
+    """Execute Bronze -> Platinum Parquet transfer.
+
+    Parameters
+    ----------
+    args : dict[str, str]
+        Glue/Python-shell arguments.
+
+    Returns
+    -------
+    dict[str, str]
+        Execution summary with source/target details.
+    """
     bronze_bucket = args.get("BRONZE_BUCKET") or DEFAULT_BRONZE_BUCKET
     platinum_bucket = args.get("PLATINUM_BUCKET") or DEFAULT_PLATINUM_BUCKET
     platinum_prefix = args.get("PLATINUM_PREFIX") or DEFAULT_PLATINUM_PREFIX
@@ -130,6 +181,7 @@ def run_job(args: dict[str, str]) -> dict[str, str]:
 
 
 def main() -> None:
+    """Glue entrypoint."""
     args = resolve_args(
         required=[],
         optional=[

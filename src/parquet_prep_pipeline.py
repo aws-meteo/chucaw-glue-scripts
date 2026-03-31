@@ -1,3 +1,9 @@
+"""Standalone GRIB -> Parquet preprocessing pipeline.
+
+This module keeps the original pipeline shape but replaces Pangu-specific outputs
+with a parquet serialization workflow.
+"""
+
 import os
 import warnings
 
@@ -18,6 +24,20 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 def download_ecmwf_initial_state(date_str: str, run_str: str, download_dir: str = "/tmp") -> str:
     """
     Descarga el archivo GRIB2 global operativo desde el Open Data de AWS.
+
+    Parameters
+    ----------
+    date_str : str
+        Fecha en formato ``YYYYMMDD``.
+    run_str : str
+        Run ECMWF (por ejemplo, ``00z``).
+    download_dir : str, default "/tmp"
+        Directorio temporal de descarga.
+
+    Returns
+    -------
+    str
+        Ruta local del GRIB descargado.
     """
     bucket_name = "ecmwf-forecasts"
     base_name = f"{date_str}{run_str[:2]}0000-0h-oper-fc"
@@ -47,6 +67,18 @@ def download_ecmwf_initial_state(date_str: str, run_str: str, download_dir: str 
 def prepare_parquet(grib_path: str, output_dir: str = "/tmp/output_data") -> str:
     """
     Toma el GRIB2 crudo y genera un Parquet tabular con todas las variables.
+
+    Parameters
+    ----------
+    grib_path : str
+        Ruta local al archivo GRIB.
+    output_dir : str, default "/tmp/output_data"
+        Directorio temporal para salida parquet.
+
+    Returns
+    -------
+    str
+        Ruta local al parquet generado.
     """
     print("Abriendo y fusionando GRIB2 (Resolviendo conflictos)...")
     datasets = cfgrib.open_datasets(grib_path)
@@ -80,6 +112,18 @@ def lambda_handler(event, context):
     """
     Payload de ejemplo:
         {"date": "20260318", "run": "00z", "output_bucket": "mi-bucket-silver"}
+
+    Parameters
+    ----------
+    event : dict
+        Evento con configuracion de fecha/run y salida.
+    context : Any
+        Contexto de Lambda/Glue.
+
+    Returns
+    -------
+    dict
+        Resumen de ejecucion y ubicacion de salida en S3.
     """
     date_str = event.get("date", "20260317")
     run_str = event.get("run", "00z")
