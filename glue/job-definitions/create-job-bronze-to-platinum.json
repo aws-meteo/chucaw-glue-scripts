@@ -1,6 +1,7 @@
 {
   "Name": "chucaw-bronze-to-platinum-parquet",
-  "Role": "arn:aws:iam::725644097028:role/service-role/AWSGlueServiceRole-chucaw",
+  "Role": "arn:aws:iam::725644097028:role/AWSGlueServiceRole-chucaw",
+  
   "ExecutionProperty": {
     "MaxConcurrentRuns": 1
   },
