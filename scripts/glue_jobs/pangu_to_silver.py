@@ -1,3 +1,5 @@
+"""Glue Python Shell job for Pangu tensor outputs."""
+
 from pathlib import Path
 
 from chucaw_preprocessor.ecmwf import (
@@ -12,6 +14,7 @@ from chucaw_preprocessor.job_common import partition_prefix
 
 
 def main() -> None:
+    """Glue entrypoint for GRIB -> Pangu ``.npy`` conversion."""
     args = resolve_args(
         required=["BRONZE_BUCKET", "BRONZE_KEY", "SILVER_BUCKET", "SILVER_PREFIX", "DATE", "RUN"],
         optional=["TMP_DIR"],

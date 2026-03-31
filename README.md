@@ -182,3 +182,28 @@ Para consultas eficientes, la partición se construye por:
 - `month`
 - `day`
 - `run`
+
+## Documentación Sphinx (NumPy style)
+
+La documentación técnica del equipo vive en `docs/sphinx` y usa:
+
+- `sphinx`
+- `napoleon` (estilo NumPy docstrings)
+- `autodoc` para módulos/scripts
+
+Instalación:
+
+```powershell
+python -m pip install -r requirements-docs.txt
+```
+
+Build HTML:
+
+```powershell
+cd docs/sphinx
+..\..\.venv\Scripts\python.exe -m sphinx -b html source build/html
+```
+
+Abrir:
+
+`docs/sphinx/build/html/index.html`

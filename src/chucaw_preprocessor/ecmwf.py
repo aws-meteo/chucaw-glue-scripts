@@ -1,3 +1,5 @@
+"""Core ECMWF preprocessing utilities for GRIB ingestion and serialization."""
+
 import os
 from pathlib import Path
 
@@ -15,7 +17,22 @@ _GRAVITY = 9.80665
 
 
 def download_grib_from_s3(bucket: str, key: str, download_dir: str = "/tmp") -> str:
-    """Download a GRIB file from S3 and return local file path."""
+    """Download GRIB object from S3.
+
+    Parameters
+    ----------
+    bucket : str
+        Source S3 bucket.
+    key : str
+        Source S3 key.
+    download_dir : str, default "/tmp"
+        Local directory used for temporary download.
+
+    Returns
+    -------
+    str
+        Local path to downloaded GRIB file.
+    """
     local_path = str(Path(download_dir) / Path(key).name)
     s3 = boto3.client("s3")
     s3.download_file(bucket, key, local_path)
@@ -23,12 +40,24 @@ def download_grib_from_s3(bucket: str, key: str, download_dir: str = "/tmp") -> 
 
 
 def upload_file_to_s3(local_path: str, bucket: str, key: str) -> None:
+    """Upload local file to S3."""
     s3 = boto3.client("s3")
     s3.upload_file(local_path, bucket, key)
 
 
 def load_merged_dataset(grib_path: str) -> xr.Dataset:
-    """Open all GRIB message groups and merge into one dataset."""
+    """Load and merge GRIB message groups into a single dataset.
+
+    Parameters
+    ----------
+    grib_path : str
+        Local path to a GRIB file.
+
+    Returns
+    -------
+    xarray.Dataset
+        Merged dataset sorted by latitude (descending), when available.
+    """
     datasets = cfgrib.open_datasets(grib_path)
     cleaned = []
     for dataset in datasets:
@@ -44,7 +73,18 @@ def _squeeze(data_array: xr.DataArray) -> np.ndarray:
 
 
 def build_pangu_arrays(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray]:
-    """Build Pangu surface and upper-air tensors from merged ECMWF dataset."""
+    """Build Pangu tensors from merged ECMWF dataset.
+
+    Parameters
+    ----------
+    ds : xarray.Dataset
+        Merged ECMWF dataset.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, numpy.ndarray]
+        ``(surface_array, upper_array)`` with ``float32`` dtype.
+    """
     surface_values = [_squeeze(ds[var]) for var in _SURFACE_VARS]
     surface_array = np.stack(surface_values, axis=0).astype(np.float32)
 
@@ -56,7 +96,18 @@ def build_pangu_arrays(ds: xr.Dataset) -> tuple[np.ndarray, np.ndarray]:
 
 
 def build_parquet_frames(ds: xr.Dataset) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Create tidy DataFrames for surface and pressure-level fields."""
+    """Build tidy dataframes for surface and upper-level fields.
+
+    Parameters
+    ----------
+    ds : xarray.Dataset
+        Merged ECMWF dataset.
+
+    Returns
+    -------
+    tuple[pandas.DataFrame, pandas.DataFrame]
+        ``(surface_df, upper_df)``.
+    """
     surface = ds[_SURFACE_VARS].to_array("variable").rename("value").to_dataframe().reset_index()
     surface["value"] = surface["value"].astype("float32")
 
@@ -76,6 +127,7 @@ def build_parquet_frames(ds: xr.Dataset) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def write_pangu_arrays(surface_array: np.ndarray, upper_array: np.ndarray, output_dir: str) -> tuple[str, str]:
+    """Write Pangu arrays to ``.npy`` files."""
     os.makedirs(output_dir, exist_ok=True)
     surface_path = str(Path(output_dir) / "input_surface.npy")
     upper_path = str(Path(output_dir) / "input_upper.npy")
@@ -85,6 +137,7 @@ def write_pangu_arrays(surface_array: np.ndarray, upper_array: np.ndarray, outpu
 
 
 def write_parquet_frames(surface_df: pd.DataFrame, upper_df: pd.DataFrame, output_dir: str) -> tuple[str, str]:
+    """Write surface/upper dataframes to parquet files."""
     os.makedirs(output_dir, exist_ok=True)
     surface_path = str(Path(output_dir) / "surface.parquet")
     upper_path = str(Path(output_dir) / "upper.parquet")
