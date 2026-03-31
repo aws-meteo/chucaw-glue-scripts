@@ -12,6 +12,7 @@
   "DefaultArguments": {
     "--job-language": "python",
     "--TempDir": "s3://chucaw-data-platinum-processed-725644097028-us-east-1-an/glue/temp/",
+      "--TMP_DIR": "/tmp",
     "--enable-metrics": "true",
     "--additional-python-modules": "s3://chucaw-data-platinum-processed-725644097028-us-east-1-an/glue/artifacts/glue-dependencies.gluewheels.zip,s3://chucaw-data-platinum-processed-725644097028-us-east-1-an/glue/artifacts/chucaw_preprocessor-0.1.0-py3-none-any.whl",
     "--python-modules-installer-option": "--no-index",
