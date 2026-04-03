@@ -4,6 +4,28 @@ import os
 from pathlib import Path
 
 import boto3
+
+try:
+    import eccodeslib
+
+    lib_dir_candidate = Path(eccodeslib.__file__).resolve().parent / "lib"
+    if lib_dir_candidate.exists():
+        lib_dir = lib_dir_candidate
+    else:
+        eccodes_root = Path(eccodeslib.__file__).resolve().parent
+        matches = list(eccodes_root.rglob("libeccodes*.so*"))
+        if matches:
+            lib_dir = matches[0].parent
+        else:
+            lib_dir = None
+
+    if lib_dir and lib_dir.exists():
+        os.environ["ECCODES_DIR"] = str(lib_dir)
+        current_ld_path = os.environ.get("LD_LIBRARY_PATH", "")
+        os.environ["LD_LIBRARY_PATH"] = f"{lib_dir}:{current_ld_path}" if current_ld_path else str(lib_dir)
+except ImportError:
+    pass
+
 import cfgrib
 import numpy as np
 import pandas as pd
@@ -58,7 +80,9 @@ def load_merged_dataset(grib_path: str) -> xr.Dataset:
     xarray.Dataset
         Merged dataset sorted by latitude (descending), when available.
     """
-    datasets = cfgrib.open_datasets(grib_path)
+    # Use decode_timedelta=False to avoid pandas 3.x compatibility issues
+    backend_kwargs = {"decode_timedelta": False}
+    datasets = cfgrib.open_datasets(grib_path, backend_kwargs=backend_kwargs)
     cleaned = []
     for dataset in datasets:
         cleaned.append(dataset.drop_vars([c for c in dataset.coords if c in _DROP_COORDS], errors="ignore"))
