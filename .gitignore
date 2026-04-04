@@ -1,3 +1,16 @@
+# ============================================================================
+# DATA FILES (Never track large binaries)
+# ============================================================================
+*.grib
+*.grib1
+*.grib2
+*.parquet/
+*.parquet
+**/test_output_*/
+**/data_sample/
+# Cfgrib indices
+*.idx
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
