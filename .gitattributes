@@ -1,0 +1,46 @@
+# ==============================================================================
+# Git Attributes - Line Ending Configuration
+# ==============================================================================
+# Purpose: Ensure shell scripts maintain Unix (LF) line endings even on Windows
+# Critical for Docker execution from Windows host
+# ==============================================================================
+
+# Default: Auto-detect text files and normalize to LF in repo
+* text=auto
+
+# Shell scripts MUST have LF endings (Docker/Linux requirement)
+*.sh text eol=lf
+
+# Python scripts: LF preferred
+*.py text eol=lf
+
+# PowerShell scripts: CRLF for Windows
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
+
+# Dockerfile: LF (Linux)
+Dockerfile* text eol=lf
+
+# Windows batch files: CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Documentation: platform-native
+*.md text
+*.txt text
+*.rst text
+
+# Binary files: never modify
+*.zip binary
+*.tar binary
+*.gz binary
+*.so binary
+*.pyc binary
+*.pyd binary
+*.dll binary
+*.exe binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary

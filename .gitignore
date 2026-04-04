@@ -213,3 +213,25 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ============================================================================
+# AWS Glue Build Artifacts
+# ============================================================================
+# Output from build-glue-deps.ps1
+build/glue-dependencies.zip
+build/manifest.txt
+build/python/
+build/temp/
+
+# Docker build cache (optional - keep if you want to persist across git operations)
+# .docker/
+
+# ============================================================================
+# Development / Agent Artifacts
+# ============================================================================
+.venv311-linux/
+test_output_parquet/
+test_output_synthetic/
+.tmp/
+*.log
+.agent/

@@ -5,22 +5,23 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chucaw-preprocessor"
 version = "0.1.0"
-description = "ECMWF GRIB preprocessing jobs for AWS Glue (Bronze to Silver)."
+description = "ECMWF GRIB preprocessing jobs for AWS Glue 5.0 (Bronze → Platinum)."
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
-  "xarray==2024.2.0",
-  "cfgrib==0.9.14.1",
-  "eccodes==2.42.0",
-  "eccodeslib==2.42.0",
+  "xarray>=2024.2.0",
+  "cfgrib>=0.9.14",
+  "eccodes>=2.42.0",
 ]
 
 [project.optional-dependencies]
+# These are already provided by Glue 5.0 baseline — listed here ONLY for
+# local development, NOT for packaging into the .gluewheels.zip.
 glue-base = [
-  "boto3==1.34.131",
-  "numpy==1.26.4",
-  "pandas==2.2.2",
-  "pyarrow==17.0.0",
+  "boto3>=1.34",
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "pyarrow>=17.0",
 ]
 
 [tool.setuptools]
