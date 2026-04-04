@@ -1,5 +1,5 @@
 {
-  "JobName": "chucaw-bronze-to-platinum-parquet",
+  "JobName": "bronze_to_platinum_as_parquet",
   "Arguments": {
     "--BRONZE_PREFIX": "ecmwf",
     "--DATE": "20260330",

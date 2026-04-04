@@ -1,5 +1,5 @@
 {
-  "JobName": "chucaw-bronze-to-platinum-parquet",
+  "JobName": "bronze_to_platinum_as_parquet",
   "Arguments": {
     "--BRONZE_KEY": "ecmwf/20260330/00z/ifs/0p25/oper/20260330000000-0h-oper-fc.grib2"
   }

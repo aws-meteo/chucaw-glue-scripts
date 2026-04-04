@@ -7,7 +7,9 @@ on:
       - development
     paths:
       - "pyproject.toml"
+      - "requirements.txt"
       - "requirements-glue.txt"
+      - "lista_de_glue50.txt"
       - "scripts/build_glue_artifacts.ps1"
       - "src/**"
 
@@ -21,18 +23,19 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.11"
 
-      - name: Build project wheel and dependency wheels
+      - name: Build project wheel and Glue dependency bundle
+        shell: pwsh
         run: |
-          python -m pip install --upgrade pip build wheel
-          python -m build --wheel
-          python -m pip wheel --wheel-dir dist -r requirements-glue.txt
-          cd dist
-          zip -r glue-dependencies.gluewheels.zip ./*.whl
+          ./scripts/build_glue_artifacts.ps1 `
+            -Python python `
+            -OutputDir dist `
+            -RequirementsFile requirements-glue.txt `
+            -GlueProvidedList lista_de_glue50.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: glue-wheel-artifacts
-          path: dist/*
+          path: dist/**
