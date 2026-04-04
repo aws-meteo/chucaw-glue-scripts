@@ -5,12 +5,12 @@ Procesamiento de GRIB ECMWF para Lakehouse con AWS Glue.
 ## Estrategia de ramas
 
 - `ecmwf_to_bronze`: conserva el enfoque anterior (Lambda + Docker/ECR para ingesta).
-- `development`: nueva línea de trabajo para ETL en Glue (Python Shell) desde bronce hacia platinum.
+- `development`: nueva línea de trabajo para ETL en Glue 5.0 (`glueetl`, Python 3.11) desde bronce hacia platinum.
 
 ## Nueva arquitectura (development)
 
 1. Los GRIB llegan a capa bronce en S3.
-2. Jobs de AWS Glue Python Shell leen GRIB desde bronce.
+2. Jobs de AWS Glue 5.0 (`glueetl`) leen GRIB desde bronce.
 3. Se aplica la misma base de limpieza/normalización con `xarray` y `cfgrib`.
 4. Salidas a capa platinum:
 - formato Pangu (`input_surface.npy`, `input_upper.npy`)
@@ -21,10 +21,25 @@ Procesamiento de GRIB ECMWF para Lakehouse con AWS Glue.
 - `src/chucaw_preprocessor/ecmwf.py`: lógica común de lectura, limpieza y conversión.
 - `scripts/glue_jobs/pangu_to_silver.py`: job Glue para salida Pangu.
 - `scripts/glue_jobs/bronze_to_platinum_parquet.py`: job Glue principal para salida Parquet.
+- `scripts/glue_jobs/grib_to_platinum_parquet.py`: conversión local desde un GRIB en disco hacia Parquet.
 - `scripts/glue_jobs/parquet_to_silver.py`: wrapper de compatibilidad (redirige al job principal).
 - `pyproject.toml`: configuración para construir wheel del proyecto.
 - `requirements-glue.txt`: dependencias a empaquetar para Glue.
-- `scripts/build_glue_artifacts.ps1`: construcción de wheel + wheels de dependencias + zip `.gluewheels.zip`.
+- `scripts/build_glue_artifacts.ps1`: construcción de wheel del proyecto + bundle de dependencias Glue 5.0 (`.gluewheels.zip`) filtrado con baseline de Glue.
+
+### 🐳 Compilación de Dependencias con Docker (Glue 5.0)
+
+Para compilar las librerías nativas (`eccodes`) exactas al sistema operativo de AWS Glue 5.0 (Amazon Linux 2023, Python 3.11):
+
+1. **`Dockerfile.glue-builder`**: Entorno de compilación oficial `public.ecr.aws/glue/aws-glue-libs:5`.
+2. **`build_glue_libs.sh`**: Ejecutado dentro de Docker. Descarga wheels, filtra base packages de Glue 5.0, y arma el `.gluewheels.zip`.
+
+**Ejecución de build (primera vez):**
+```powershell
+docker build -f Dockerfile.glue-builder -t glue5-builder:latest .
+docker run --rm -v "${PWD}:/workspace" -v "${PWD}/build:/build" glue5-builder:latest "bash /workspace/build_glue_libs.sh"
+```
+*(Ver más detalles en `boulder.json`)*
 
 ## Entorno local (`.venv`)
 
@@ -35,13 +50,13 @@ Se debe trabajar con un entorno local en la carpeta `.venv` usando las versiones
 Con `conda`:
 
 ```powershell
-conda create --prefix .venv python=3.12 pip -y
+conda create --prefix .venv python=3.11 pip -y
 ```
 
 Si `conda` no está en `PATH`:
 
 ```powershell
-& "C:\ProgramData\miniconda3\Scripts\conda.exe" create --prefix .venv python=3.12 pip -y
+& "C:\ProgramData\miniconda3\Scripts\conda.exe" create --prefix .venv python=3.11 pip -y
 ```
 
 ### 2) Activar entorno
@@ -65,44 +80,39 @@ python -m pip list
 
 ## Dependencias relevantes para Glue
 
-Dependencias nuevas para el escenario Glue/Parquet sobre la base existente:
+Modelo de dependencias para Glue 5.0:
 
-- `pandas`
-- `pyarrow`
-
-Se mantienen librerías para GRIB/xarray:
-
-- `xarray`
-- `cfgrib`
-- `eccodes`
-- `numpy`
-- `boto3`
+- Baseline provisto por Glue (segun `lista_de_glue50.txt`): `boto3`, `numpy`, `pandas`, `pyarrow` y otras.
+- Extras empaquetadas por este repo: `xarray`, `cfgrib`, `eccodes` (mas transitivas no provistas por Glue).
 
 ## Construcción de artefactos (wheel + gluewheels)
 
-```powershell
-./scripts/build_glue_artifacts.ps1
-```
+Se ejecuta a través del container Docker (ver sección anterior). Genera en `build/`:
+- `chucaw_preprocessor-*.whl` (el wheel de la aplicación).
+- `glue-dependencies.gluewheels.zip` (dependencias nativas y transitivas, sin `numpy/pandas/pyarrow`).
+- `manifest.txt` con el inventario de librerías.
 
-Genera en `dist/`:
+## Configuración recomendada en AWS Glue (5.0 Offline deploy)
 
-- wheel del proyecto `chucaw_preprocessor-*.whl`
-- wheels de dependencias
-- `glue-dependencies.gluewheels.zip`
+Basado en la guía oficial de AWS Glue para librerías Python y AWS Glue 5.0:
 
-## Configuración recomendada en AWS Glue
+- Subir wheel del proyecto y `glue-dependencies.gluewheels.zip` a tu bucket S3.
+- Usar `job_type="glueetl"` con `GlueVersion="5.0"`.
+- Usar los artefactos con el mecanismo offline (`--no-index` y `--additional-python-modules`).
 
-Basado en la guía oficial de AWS Glue para librerías Python:
-
-- subir wheel del proyecto y `glue-dependencies.gluewheels.zip` a S3
-- usar `--additional-python-modules` con rutas S3 a wheels/zip
-- para enfoque determinista en producción, preferir artefactos congelados (wheel/zip) sobre instalación dinámica desde PyPI
-
-Ejemplo de argumentos de job:
+Ejemplo de argumentos del Job (DefaultArguments):
 
 ```text
---additional-python-modules s3://<bucket>/artifacts/glue-dependencies.gluewheels.zip,s3://<bucket>/artifacts/chucaw_preprocessor-0.1.0-py3-none-any.whl
+--additional-python-modules s3://<bucket>/libs/glue-dependencies.gluewheels.zip,s3://<bucket>/libs/chucaw_preprocessor-0.1.0-py3-none-any.whl
 --python-modules-installer-option --no-index
+```
+
+## Smoke test de runtime (antes de deploy)
+
+Validación local recomendada para imports y versiones base de Glue:
+
+```powershell
+& "C:\ProgramData\miniconda3\Scripts\conda.exe" run -p .venv python scripts/smoke/glue_runtime_smoke.py --strict --output-json dist/glue-runtime-smoke.json
 ```
 
 ## Parámetros de ejecución de jobs
@@ -162,17 +172,39 @@ Ejemplo de `DefaultArguments` en Glue Studio:
 --BRONZE_KEY <ruta-exacta-a-tu-grib2>
 ```
 
-Dependencias del job (Glue 5.0 recomendado):
+Dependencias del job (Glue 5.0):
 
 ```text
---additional-python-modules s3://<bucket-artifacts>/glue-dependencies.gluewheels.zip,s3://<bucket-artifacts>/chucaw_preprocessor-0.1.0-py3-none-any.whl
+--additional-python-modules s3://<bucket>/libs/glue-dependencies.gluewheels.zip,s3://<bucket>/libs/chucaw_preprocessor-0.1.0-py3-none-any.whl
 --python-modules-installer-option --no-index
 ```
 
+### Script local: GRIB -> Parquet
+
+Script: `scripts/glue_jobs/grib_to_platinum_parquet.py`
+
+Uso mínimo:
+
+```text
+python scripts/glue_jobs/grib_to_platinum_parquet.py --GRIB_PATH /ruta/local/al/archivo.grib2
+```
+
+Parámetros soportados:
+
+- `--GRIB_PATH` (requerido, ruta local al GRIB)
+- `--OUTPUT_DIR` (opcional, default `/tmp/parquet`)
+- `--DATE` (opcional, `YYYYMMDD`; si no viene, se infiere del nombre/ruta o usa la fecha actual)
+- `--RUN` (opcional, `00z/06z/12z/18z`; si no viene, se infiere del nombre/ruta o usa `00z`)
+
+Salida local:
+
+- `<OUTPUT_DIR>/surface.parquet`
+- `<OUTPUT_DIR>/upper.parquet`
+
 ### Nota sobre DynamicFrames
 
-Este job está pensado para **Glue Python Shell**, por lo que no usa `DynamicFrame` (que aplica al runtime Spark `glueetl`).  
-Si luego migramos a Glue Spark para catálogo/crawlers y transformaciones de gran escala, ahí sí conviene incorporar `GlueContext` + `DynamicFrame`.
+Este job corre en runtime Spark (`glueetl`) para usar Glue 5.0 / Python 3.11, pero la transformacion sigue siendo Python puro con `xarray/pandas/pyarrow` y no usa `DynamicFrame`.  
+Si luego se requiere integracion fuerte con Catalog/Spark SQL, conviene incorporar `GlueContext` + `DynamicFrame`.
 
 ## Nota de particiones
 

@@ -1,0 +1,34 @@
+{
+  "Name": "example-glue-job-with-custom-deps",
+  "Description": "Example AWS Glue 5.0 job configuration with Docker-compiled dependencies",
+  "Role": "arn:aws:iam::ACCOUNT_ID:role/GlueServiceRole",
+  "Command": {
+    "Name": "glueetl",
+    "ScriptLocation": "s3://your-glue-scripts-bucket/scripts/your_job.py",
+    "PythonVersion": "3"
+  },
+  "DefaultArguments": {
+    "--job-language": "python",
+    "--TempDir": "s3://your-glue-temp-bucket/temp/",
+    "--enable-metrics": "true",
+    "--enable-spark-ui": "true",
+    "--spark-event-logs-path": "s3://your-glue-logs-bucket/spark-logs/",
+    
+    "--additional-python-modules": "s3://your-glue-artifacts-bucket/libs/glue-dependencies.gluewheels.zip,s3://your-glue-artifacts-bucket/libs/chucaw_preprocessor-0.1.0-py3-none-any.whl",
+    "--python-modules-installer-option": "--no-index",
+    
+    "--enable-glue-datacatalog": "true",
+    "--enable-continuous-cloudwatch-log": "true",
+    "--enable-continuous-log-filter": "true",
+    "--continuous-log-logGroup": "/aws-glue/jobs/output",
+    
+    "--conf": "spark.executor.memory=4g --conf spark.driver.memory=4g"
+  },
+  "MaxRetries": 0,
+  "Timeout": 2880,
+  "MaxCapacity": 2.0,
+  "GlueVersion": "5.0",
+  "NumberOfWorkers": 2,
+  "WorkerType": "G.1X",
+  "ExecutionClass": "STANDARD"
+}

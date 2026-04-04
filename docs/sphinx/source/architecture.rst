@@ -11,7 +11,7 @@ Piezas principales
 ------------------
 
 - ``src/chucaw_preprocessor/ecmwf.py``: funciones base de lectura, merge y serializacion.
-- ``scripts/glue_jobs/bronze_to_platinum_parquet.py``: job Glue Python Shell principal.
+- ``scripts/glue_jobs/bronze_to_platinum_parquet.py``: job Glue principal (runtime ``glueetl`` en Glue 5.0).
 - ``glue/job-definitions/*.json``: definiciones listas para crear/actualizar el job.
 - ``glue/job-runs/*.json``: ejemplos listos para ejecutar corridas.
 
@@ -28,5 +28,5 @@ La salida Parquet se publica con las particiones:
 Nota sobre DynamicFrame
 -----------------------
 
-Este flujo usa Glue Python Shell, por lo que el procesamiento corre con Python puro
-(``xarray/pandas/pyarrow``). ``DynamicFrame`` aplica a jobs Spark ``glueetl``.
+Este flujo se ejecuta en ``glueetl`` para Glue 5.0 (Python 3.11), pero la transformacion
+del script sigue en Python puro (``xarray/pandas/pyarrow``) sin ``DynamicFrame``.
