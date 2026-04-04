@@ -12,11 +12,10 @@ from pathlib import Path
 import boto3
 
 from chucaw_preprocessor.ecmwf import (
-    build_parquet_frames,
+    serialize_parquet_chunked,
     download_grib_from_s3,
     load_merged_dataset,
     upload_file_to_s3,
-    write_parquet_frames,
 )
 from chucaw_preprocessor.glue_args import resolve_args
 
@@ -152,15 +151,11 @@ def run_job(args: dict[str, str]) -> dict[str, str]:
 
     grib_path = download_grib_from_s3(bronze_bucket, bronze_key, download_dir=tmp_dir)
     ds = load_merged_dataset(grib_path)
-    surface_df, upper_df = build_parquet_frames(ds)
-
-    surface_df["run"] = run_str
-    surface_df["date"] = date_str
-    upper_df["run"] = run_str
-    upper_df["date"] = date_str
 
     output_dir = str(Path(tmp_dir) / "parquet")
-    surface_path, upper_path = write_parquet_frames(surface_df, upper_df, output_dir=output_dir)
+    surface_path, upper_path = serialize_parquet_chunked(
+        ds, output_dir=output_dir, date_str=date_str, run_str=run_str
+    )
     target_prefix = _partition_prefix(platinum_prefix, date_str, run_str)
 
     surface_key = f"{target_prefix}/dataset=surface/part-000.parquet"

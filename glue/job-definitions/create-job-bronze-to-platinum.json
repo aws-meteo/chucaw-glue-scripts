@@ -5,28 +5,29 @@
   "ExecutionProperty": {
     "MaxConcurrentRuns": 1
   },
+  "GlueVersion": "5.0",
   "Command": {
-    "Name": "pythonshell",
-    "PythonVersion": "3.9",
-    "ScriptLocation": "s3://chucaw-data-platinum-processed-725644097028-us-east-1-an/glue/scripts/bronze_to_platinum_parquet.py"
+    "Name": "glueetl",
+    "ScriptLocation": "s3://chucaw-glue-assets-725644097028-us-east-1-an/glue/scripts/bronze_to_platinum_parquet.py"
   },
   "DefaultArguments": {
     "--job-language": "python",
     "--TempDir": "s3://chucaw-data-platinum-processed-725644097028-us-east-1-an/glue/temp/",
-      "--TMP_DIR": "/tmp",
+    "--TMP_DIR": "/tmp",
     "--enable-metrics": "true",
-    "--additional-python-modules": "s3://chucaw-data-platinum-processed-725644097028-us-east-1-an/glue/artifacts/glue-dependencies.gluewheels.zip,s3://chucaw-data-platinum-processed-725644097028-us-east-1-an/glue/artifacts/chucaw_preprocessor-0.1.0-py3-none-any.whl",
+    "--additional-python-modules": "s3://chucaw-glue-assets-725644097028-us-east-1-an/glue/artifacts/glue-dependencies.gluewheels.zip,s3://chucaw-glue-assets-725644097028-us-east-1-an/glue/artifacts/chucaw_preprocessor-0.1.0-py3-none-any.whl",
     "--python-modules-installer-option": "--no-index",
     "--BRONZE_BUCKET": "chucaw-data-bronze-raw-725644097028-us-east-1-an",
     "--PLATINUM_BUCKET": "chucaw-data-platinum-processed-725644097028-us-east-1-an",
     "--PLATINUM_PREFIX": "ecmwf/parquet"
   },
-  "MaxCapacity": 1.0,
+  "WorkerType": "G.1X",
+  "NumberOfWorkers": 2,
   "Timeout": 30,
   "MaxRetries": 1,
   "Tags": {
     "project": "chucaw",
     "layer": "platinum",
-    "job_type": "python_shell"
+    "job_type": "glueetl"
   }
 }
