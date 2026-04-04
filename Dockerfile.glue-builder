@@ -1,0 +1,29 @@
+# AWS Glue 5.0 (Python 3.11, Spark 3.5.4, Amazon Linux 2023)
+FROM public.ecr.aws/glue/aws-glue-libs:5
+
+USER root
+
+# Install build toolchain for eccodes compilation
+# Amazon Linux 2023 already has curl/tar/gzip; only add compilers + cmake
+RUN dnf install -y --allowerasing gcc gcc-c++ gcc-gfortran cmake make && \
+    dnf clean all
+
+# Build eccodes from source (ECMWF GRIB library)
+RUN cd /tmp && \
+    curl -sL https://confluence.ecmwf.int/download/attachments/45757960/eccodes-2.42.0-Source.tar.gz -o eccodes.tar.gz && \
+    tar xzf eccodes.tar.gz && \
+    mkdir eccodes-2.42.0-Source/build && \
+    cd eccodes-2.42.0-Source/build && \
+    cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DENABLE_PYTHON=OFF -DENABLE_FORTRAN=OFF -DENABLE_AEC=OFF && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    rm -rf /tmp/eccodes*
+
+ENV ECCODES_DIR=/usr/local
+ENV LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib:$LD_LIBRARY_PATH
+
+# Switch back to default Glue user
+USER hadoop
+WORKDIR /home/hadoop/workspace
+ENTRYPOINT ["/bin/bash", "-c"]
