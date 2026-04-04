@@ -1,0 +1,6 @@
+🚀 Iniciando rigurosa evaluación local sobre 3 archivos base.
+🔄 Se correrán 5 muestras garantizando el flush de la RAM vía GC.
+
+Iteración 1/5 usando: 20260403180000-12h-scda-fc.grib2
+  ▶ PyArrow (Chunked) ... Ok. (222.80s | 4709.6 MB)
+  ▶ Legacy (InMemory) ... 

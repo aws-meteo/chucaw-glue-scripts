@@ -1,0 +1,277 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                 AWS GLUE 5.0 DEPENDENCY BUILD SYSTEM                        │
+│                      Flujo de Trabajo Visual                                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                        PASO 1: PRE-FLIGHT CHECK                           ║
+║                          (Opcional - 30 seg)                              ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+    Windows PowerShell
+         │
+         │  .\test-glue-build.ps1
+         │
+         ▼
+    ┌─────────────────────────┐
+    │ ✓ Docker running?       │
+    │ ✓ Files exist?          │
+    │ ✓ Base image available? │
+    └─────────────────────────┘
+         │
+         │ All checks pass
+         ▼
+    [ Proceed to Build ]
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                       PASO 2: BUILD & VERIFY                              ║
+║                        (5-10 min primera vez)                             ║
+║                        (30 seg rebuilds)                                  ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+    Windows PowerShell
+         │
+         │  .\build-glue-deps.ps1
+         │
+         ▼
+    ┌──────────────────────────────────────────────┐
+    │  🐳 Build Docker Image                       │
+    │     ├─ Pull AWS Glue 5.0 base                │
+    │     ├─ Install gcc/g++/gfortran/cmake        │
+    │     └─ Compile eccodes 2.42.0 from source    │
+    │        (5-7 min primera vez)                 │
+    └──────────────────────────────────────────────┘
+         │
+         │ Image: glue-builder:latest
+         │
+         ▼
+    ┌──────────────────────────────────────────────┐
+    │  📦 Run build_glue_libs.sh                   │
+    │     ├─ pip install from requirements         │
+    │     │  (try precompiled wheels first)        │
+    │     │                                         │
+    │     ├─ ✅ PRE-OPTIMIZATION VERIFICATION      │
+    │     │     import xarray    ✓                 │
+    │     │     import cfgrib    ✓                 │
+    │     │     import eccodes   ✓                 │
+    │     │     (FAIL FAST if error)               │
+    │     │                                         │
+    │     ├─ 🗜️ Optimize package size              │
+    │     │     rm __pycache__/                    │
+    │     │     rm *.dist-info/                    │
+    │     │     rm tests/                          │
+    │     │     Size: ~80MB → ~45MB                │
+    │     │                                         │
+    │     └─ 📦 Create ZIP                         │
+    │        build/glue-dependencies.zip           │
+    └──────────────────────────────────────────────┘
+         │
+         │
+         ▼
+    ┌──────────────────────────────────────────────┐
+    │  ✅ POST-PACKAGING VERIFICATION              │
+    │     (verify_glue_deps.py)                    │
+    │                                               │
+    │     PYTHONPATH=glue-dependencies.zip         │
+    │       ├─ import xarray     ✓                 │
+    │       ├─ import cfgrib     ✓                 │
+    │       ├─ import eccodes    ✓                 │
+    │       ├─ xarray.Dataset()  ✓                 │
+    │       └─ cfgrib.messages   ✓                 │
+    │                                               │
+    │     All tests pass!                          │
+    └──────────────────────────────────────────────┘
+         │
+         │ SUCCESS
+         │
+         ▼
+    ┌──────────────────────────────────────────────┐
+    │  📊 Output                                    │
+    │     ├─ glue-dependencies.zip (~45 MB)        │
+    │     ├─ manifest.txt                          │
+    │     └─ temp/pip_*.log                        │
+    └──────────────────────────────────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                        PASO 3: UPLOAD TO S3                               ║
+║                           (10 seg)                                        ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+    Local File System
+         │
+         │  aws s3 cp build/glue-dependencies.zip 
+         │            s3://bucket/glue-libs/
+         │
+         ▼
+    ┌──────────────────────────────────────────────┐
+    │  ☁️  Amazon S3                               │
+    │                                               │
+    │  s3://your-bucket/                           │
+    │    └─ glue-libs/                             │
+    │        └─ glue-dependencies.zip              │
+    └──────────────────────────────────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                    PASO 4: CONFIGURE GLUE JOB                             ║
+║                          (2 min)                                          ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+    AWS Console / CLI
+         │
+         ▼
+    ┌──────────────────────────────────────────────┐
+    │  AWS Glue Job Configuration                  │
+    │                                               │
+    │  Name: my-etl-job                            │
+    │  Type: glueetl                               │
+    │  Glue Version: 5.0                           │
+    │  Python Version: 3                           │
+    │  Worker Type: G.1X                           │
+    │                                               │
+    │  Script:                                     │
+    │    s3://bucket/scripts/my_job.py             │
+    │                                               │
+    │  Advanced Properties:                        │
+    │    --extra-py-files                          │
+    │      s3://bucket/glue-libs/                  │
+    │         glue-dependencies.zip                │
+    └──────────────────────────────────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                      PASO 5: RUN & VERIFY                                 ║
+║                        (5-10 min job init)                                ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+    AWS Glue Job Run
+         │
+         │  aws glue start-job-run --job-name my-etl-job
+         │
+         ▼
+    ┌──────────────────────────────────────────────┐
+    │  AWS Glue Runtime                            │
+    │                                               │
+    │  [JOB STARTING]                              │
+    │  ├─ Initialize Spark context                 │
+    │  ├─ Download extra-py-files from S3          │
+    │  │    ✓ glue-dependencies.zip                │
+    │  └─ Extract to /tmp/                         │
+    │                                               │
+    │  [YOUR SCRIPT]                               │
+    │  ├─ import xarray          ✓                 │
+    │  ├─ import cfgrib          ✓                 │
+    │  ├─ import eccodes         ✓                 │
+    │  │                                            │
+    │  ├─ Open GRIB file         ✓                 │
+    │  ├─ Process with xarray    ✓                 │
+    │  ├─ Convert to DataFrame   ✓                 │
+    │  └─ Write Parquet to S3    ✓                 │
+    │                                               │
+    │  [JOB COMPLETED]                             │
+    │    Status: SUCCESS                           │
+    │    Duration: 3m 24s                          │
+    └──────────────────────────────────────────────┘
+         │
+         │ Logs available in CloudWatch
+         │
+         ▼
+    ┌──────────────────────────────────────────────┐
+    │  CloudWatch Logs                             │
+    │    /aws-glue/jobs/output                     │
+    │                                               │
+    │  ✓ xarray 2024.2.0                           │
+    │  ✓ cfgrib 0.9.14.1                           │
+    │  ✓ eccodes 2.42.0                            │
+    │  ✓ All dependencies loaded!                  │
+    │  ✓ Processed 1 GRIB file                     │
+    │  ✓ Wrote 247 records to S3                   │
+    └──────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                            🎉 ÉXITO COMPLETO 🎉                             │
+│                                                                             │
+│  Tu pipeline de procesamiento climático está funcionando en AWS Glue con   │
+│  dependencias científicas (xarray, cfgrib, eccodes) compiladas desde       │
+│  Windows y totalmente compatibles con el runtime de Glue.                  │
+│                                                                             │
+│  Próximos pasos:                                                           │
+│    • Implementar lógica ETL completa                                       │
+│    • Configurar triggers/schedules                                         │
+│    • Optimizar performance (partitioning, workers)                         │
+│    • Monitorear métricas en CloudWatch                                     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+TIEMPOS ESTIMADOS:
+
+  Test inicial:        30 seg
+  Primera build:       5-10 min  (compila eccodes)
+  Rebuilds:            30 seg    (usa Docker cache)
+  Upload S3:           10 seg
+  Configure job:       2 min
+  First job run:       5-10 min  (init Spark + download deps)
+  Subsequent runs:     2-3 min   (cache dependencies)
+
+  TOTAL (primera vez): ~20-30 min
+  TOTAL (iteraciones): ~5 min
+
+═══════════════════════════════════════════════════════════════════════════════
+
+ARCHIVOS CLAVE:
+
+  Ejecutables:
+    • build-glue-deps.ps1        → Orquestador principal
+    • test-glue-build.ps1         → Pre-flight check
+
+  Configuración:
+    • requirements-glue.txt       → Tus dependencias
+    • Dockerfile.glue-builder     → Entorno compilación
+    • build_glue_libs.sh          → Lógica empaquetado
+    • verify_glue_deps.py         → Validación imports
+
+  Documentación:
+    • GLUE_BUILD_QUICKSTART.md    → Quick start
+    • docs/GLUE_DEPENDENCY_BUILD.md → Docs completas
+    • IMPLEMENTATION_CHECKLIST.md → Checklist paso a paso
+    • BUILD_SYSTEM_SUMMARY.txt    → Este archivo
+
+  Ejemplos:
+    • examples/glue-job-example.json → Job definition
+    • examples/glue-job-example.py   → Glue script
+    • examples/README.md             → Guía ejemplos
+
+═══════════════════════════════════════════════════════════════════════════════
+
+COMANDOS RÁPIDOS:
+
+  # Test
+  .\test-glue-build.ps1
+
+  # Build
+  .\build-glue-deps.ps1
+
+  # Upload
+  aws s3 cp build\glue-dependencies.zip s3://bucket/glue-libs/
+
+  # Create job
+  aws glue create-job --cli-input-json file://examples/glue-job-example.json
+
+  # Run job
+  aws glue start-job-run --job-name my-job
+
+  # Check logs
+  aws logs tail /aws-glue/jobs/output --follow
+
+═══════════════════════════════════════════════════════════════════════════════
+
+                          ¡Éxito con tu proyecto! 🚀

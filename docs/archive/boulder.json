@@ -1,0 +1,340 @@
+{
+  "version": 2,
+  "name": "glue-5-migration",
+  "updated": "2026-04-04T12:48:00-03:00",
+  "objective": "Migrar el build system completo a AWS Glue 5.0 (Python 3.11, Amazon Linux 2023) usando Docker para compilación offline de wheels, eliminando contradicciones 4.0/5.0, y validando con tests atómicos en el container oficial.",
+  "runtime_target": {
+    "glue_version": "5.0",
+    "python_version": "3.11",
+    "platform": "manylinux_2_28_x86_64",
+    "os": "Amazon Linux 2023",
+    "spark": "3.5.4",
+    "docker_image": "public.ecr.aws/glue/aws-glue-libs:5",
+    "docker_user": "hadoop",
+    "deploy_mechanism": "--additional-python-modules + .gluewheels.zip + --no-index",
+    "no_internet_in_glue": true
+  },
+  "glue_50_baseline_packages": {
+    "source": "lista_de_glue50.txt + AWS docs (verified 2026-04-04)",
+    "key_versions": {
+      "python": "3.11",
+      "numpy": "1.26.4",
+      "pandas": "2.2.2",
+      "pyarrow": "17.0.0",
+      "boto3": "1.34.131",
+      "packaging": "24.1",
+      "attrs": "24.2.0"
+    }
+  },
+  "extras_needed": {
+    "description": "Dependencias NO incluidas en Glue baseline que debemos empaquetar",
+    "packages": [
+      "xarray==2024.2.0",
+      "cfgrib==0.9.14.1",
+      "eccodes==2.42.0",
+      "eccodeslib==2.42.0"
+    ],
+    "native_libs": [
+      "libeccodes.so (compilado desde fuente con cmake en Amazon Linux 2023)"
+    ],
+    "transitive_deps_to_check": [
+      "cffi",
+      "pycparser",
+      "findlibs",
+      "click"
+    ]
+  },
+  "inputs": {
+    "glue_library_inventory": "lista_de_glue50.txt",
+    "primary_job": "scripts/glue_jobs/bronze_to_platinum_parquet.py",
+    "s3_assets_bucket": "chucaw-glue-assets-725644097028-us-east-1-an",
+    "s3_bronze_bucket": "chucaw-data-bronze-raw-725644097028-us-east-1-an",
+    "s3_platinum_bucket": "chucaw-data-platinum-processed-725644097028-us-east-1-an"
+  },
+  "tasks": [
+    {
+      "id": "T01",
+      "title": "Actualizar Dockerfile.glue-builder a Glue 5.0",
+      "status": "done",
+      "workstream": "WS1",
+      "smart": {
+        "specific": "Cambiar FROM de glue_libs_4.0.0 a public.ecr.aws/glue/aws-glue-libs:5, ajustar user a hadoop, recompilar eccodes para Amazon Linux 2023",
+        "measurable": "docker build completa sin errores, eccodes compila exitosamente",
+        "achievable": "El Dockerfile actual ya compila eccodes; solo cambia la base image",
+        "relevant": "Sin imagen correcta no se puede validar nada",
+        "time_bound": "15 min"
+      },
+      "files": [
+        "Dockerfile.glue-builder"
+      ],
+      "test": "docker build -f Dockerfile.glue-builder -t glue5-builder:latest . && docker run --rm glue5-builder:latest 'python3.11 -c \"import sys; print(sys.version)\"'"
+    },
+    {
+      "id": "T02",
+      "title": "Compilar wheels en container Glue 5.0",
+      "status": "done",
+      "workstream": "WS4",
+      "depends_on": [
+        "T01"
+      ],
+      "smart": {
+        "specific": "Crear build script que dentro del container Glue 5.0 haga pip download de xarray/cfgrib/eccodes/eccodeslib como wheels manylinux para cp311, filtrando los ya provistos por Glue baseline",
+        "measurable": "dist/wheels/ contiene solo .whl para cp311-linux_x86_64, sin numpy/pandas/pyarrow/boto3",
+        "achievable": "build_glue_artifacts.ps1 ya implementa la lógica de filtrado",
+        "relevant": "Los wheels actuales son cp39/win_amd64 — inválidos para Glue 5.0",
+        "time_bound": "20 min"
+      },
+      "files": [
+        "build_glue_libs.sh",
+        "requirements-glue.txt"
+      ],
+      "test": "Inspeccionar nombres de .whl → todos deben ser cp311 o none-any, plataforma linux o any"
+    },
+    {
+      "id": "T03",
+      "title": "Crear .gluewheels.zip + wheel del proyecto",
+      "status": "done",
+      "workstream": "WS4",
+      "depends_on": [
+        "T02"
+      ],
+      "smart": {
+        "specific": "Empaquetar los wheels filtrados en glue-dependencies.gluewheels.zip + build del wheel chucaw_preprocessor separado",
+        "measurable": "dist/ contiene exactamente 2 artefactos: .gluewheels.zip y .whl del proyecto",
+        "achievable": "Extensión de T02",
+        "relevant": "AWS Glue 5.0 requiere el sufijo .gluewheels.zip para el mecanismo offline",
+        "time_bound": "10 min"
+      },
+      "files": [
+        "scripts/build_glue_artifacts.ps1"
+      ],
+      "test": "unzip -l dist/glue-dependencies.gluewheels.zip | grep -v numpy | grep -v pandas | grep -v pyarrow"
+    },
+    {
+      "id": "T04",
+      "title": "Test atómico: import verification en container Glue 5.0",
+      "status": "done",
+      "workstream": "WS4",
+      "depends_on": [
+        "T03"
+      ],
+      "smart": {
+        "specific": "Dentro del container Glue 5.0, instalar los artefactos con pip --no-index desde el .gluewheels.zip + .whl y verificar imports de xarray, cfgrib, eccodes, chucaw_preprocessor",
+        "measurable": "Todos los imports exitosos, eccodes.codes_get_api_version() retorna valor, xarray crea dataset",
+        "achievable": "verify_glue_deps.py ya hace esto",
+        "relevant": "Simula exactamente lo que hará Glue en runtime sin internet",
+        "time_bound": "5 min"
+      },
+      "files": [
+        "verify_glue_deps.py"
+      ],
+      "test": "docker run --rm -v ${PWD}:/workspace public.ecr.aws/glue/aws-glue-libs:5 -c 'pip3.11 install --no-index --find-links /workspace/dist/wheels /workspace/dist/chucaw_preprocessor-*.whl && python3.11 /workspace/verify_glue_deps.py'"
+    },
+    {
+      "id": "T05",
+      "title": "Alinear pyproject.toml a Python 3.11",
+      "status": "done",
+      "workstream": "WS2",
+      "smart": {
+        "specific": "Cambiar requires-python a >=3.11,<3.12 y mover boto3/numpy/pandas/pyarrow a optional-dependencies[glue-base] sin pins conflictivos",
+        "measurable": "pip install .[glue-base] no intenta downgrade de paquetes Glue baseline",
+        "achievable": "pyproject.toml ya tiene estructura de optional-dependencies",
+        "relevant": "F001 y F002 del boulder: el wheel actual fuerza dependencias incompatibles",
+        "time_bound": "5 min"
+      },
+      "files": [
+        "pyproject.toml"
+      ],
+      "test": "python -m build --wheel --outdir /tmp && unzip -p /tmp/chucaw_preprocessor-*.whl '*/METADATA' | grep Requires-Python"
+    },
+    {
+      "id": "T06",
+      "title": "Limpiar build scripts redundantes",
+      "status": "done",
+      "workstream": "WS1",
+      "smart": {
+        "specific": "Eliminar build_glue_complete.sh, build_glue_libs_compat.sh, build_glue_libs_fixed.sh, build_package.sh. Conservar solo build_glue_libs.sh (renombrado/actualizado) como script de build dentro de Docker",
+        "measurable": "Solo existe 1 script .sh de build + 1 .ps1 orquestador",
+        "achievable": "Son archivos de iteraciones pasadas ya no usados",
+        "relevant": "Confusión documentada sobre cuál script usar",
+        "time_bound": "5 min"
+      },
+      "files": [
+        "build_glue_complete.sh",
+        "build_glue_libs_compat.sh",
+        "build_glue_libs_fixed.sh",
+        "build_package.sh",
+        "build_glue_final.sh"
+      ],
+      "test": "No quedan scripts .sh redundantes en raíz del proyecto"
+    },
+    {
+      "id": "T07",
+      "title": "Actualizar deploy-and-test-glue.ps1 para Glue 5.0",
+      "status": "done",
+      "workstream": "WS5",
+      "depends_on": [
+        "T04"
+      ],
+      "smart": {
+        "specific": "Cambiar --glue-version a 5.0, --extra-py-files a --additional-python-modules con .gluewheels.zip, agregar --python-modules-installer-option --no-index",
+        "measurable": "Script crea job con versión 5.0 y mecanismo de wheels offline",
+        "achievable": "create-job-bronze-to-platinum.json ya tiene la config correcta; alinear el script de test",
+        "relevant": "deploy-and-test-glue.ps1 actualmente dice --glue-version 4.0",
+        "time_bound": "10 min"
+      },
+      "files": [
+        "deploy-and-test-glue.ps1",
+        "examples/glue-job-example.json"
+      ],
+      "test": "Inspeccionar JSON generado por el script: GlueVersion=5.0, --additional-python-modules presente"
+    },
+    {
+      "id": "T08",
+      "title": "Actualizar examples/ para Glue 5.0",
+      "status": "done",
+      "workstream": "WS5",
+      "depends_on": [
+        "T07"
+      ],
+      "smart": {
+        "specific": "Actualizar glue-job-example.json y glue-job-example.py para usar --additional-python-modules en vez de --extra-py-files",
+        "measurable": "Archivos de ejemplo no referencian --extra-py-files ni glue-dependencies.zip (flat)",
+        "achievable": "Cambios de texto",
+        "relevant": "Los ejemplos son la primera impresión para nuevos developers",
+        "time_bound": "5 min"
+      },
+      "files": [
+        "examples/glue-job-example.json",
+        "examples/glue-job-example.py",
+        "examples/README.md"
+      ],
+      "test": "grep -r 'extra-py-files' examples/ → debe retornar vacío"
+    },
+    {
+      "id": "T09",
+      "title": "Consolidar documentación (README único coherente)",
+      "status": "done",
+      "workstream": "WS5",
+      "depends_on": [
+        "T08"
+      ],
+      "smart": {
+        "specific": "Actualizar README.md como fuente de verdad. Archivar/eliminar PLAN_SONNET.md, BUILD_SYSTEM_SUMMARY.txt, GLUE_BUILD_QUICKSTART.md, WORKFLOW_DIAGRAM.txt, IMPLEMENTATION_CHECKLIST.md, 0404_upload_guide.md (mover a docs/archive/)",
+        "measurable": "README.md refleja Glue 5.0. No hay documentos contradictorios en raíz",
+        "achievable": "Principalmente mover archivos y actualizar texto",
+        "relevant": "8+ archivos en raíz con información contradictoria",
+        "time_bound": "15 min"
+      },
+      "files": [
+        "README.md"
+      ],
+      "test": "grep -i 'glue 4.0' README.md → vacío. grep -i 'extra-py-files' README.md → vacío"
+    },
+    {
+      "id": "T10",
+      "title": "Test E2E: smoke test en container Glue 5.0 con GRIB real",
+      "status": "in-progress",
+      "workstream": "WS5",
+      "depends_on": [
+        "T04",
+        "T05"
+      ],
+      "smart": {
+        "specific": "Ejecutar bronze_to_platinum_parquet.py dentro del container Glue 5.0 contra el GRIB de prueba existente (scripts/glue_jobs/20260330*.grib2), verificar que genera Parquet válido",
+        "measurable": "Archivos surface.parquet y upper.parquet generados sin error",
+        "achievable": "GRIB de test ya existe en el repo (130 MB)",
+        "relevant": "Validación funcional end-to-end antes de deploy a AWS",
+        "time_bound": "10 min"
+      },
+      "files": [
+        "scripts/glue_jobs/bronze_to_platinum_parquet.py",
+        "scripts/glue_jobs/grib_to_platinum_parquet.py"
+      ],
+      "test": "docker run con volumen montado, ejecutar grib_to_platinum_parquet.py --GRIB_PATH /workspace/scripts/glue_jobs/20260330*.grib2",
+      "notes": "Command hangs without output, possible memory/IO limit locally with 130MB GRIB inside docker"
+    }
+  ],
+  "workstreams": [
+    {
+      "id": "WS1",
+      "title": "Alinear runtime a Glue 5.0 / Python 3.11",
+      "tasks": [
+        "T01",
+        "T06"
+      ],
+      "done_when": [
+        "Dockerfile usa public.ecr.aws/glue/aws-glue-libs:5",
+        "No quedan scripts redundantes de Glue 4.0"
+      ]
+    },
+    {
+      "id": "WS2",
+      "title": "Racionalizar metadata y dependencias del wheel",
+      "tasks": [
+        "T05"
+      ],
+      "done_when": [
+        "pyproject.toml dice Python >=3.11",
+        "No hay pins que contradigan Glue 5.0 baseline"
+      ]
+    },
+    {
+      "id": "WS4",
+      "title": "Build pipeline: Docker → wheels → .gluewheels.zip",
+      "tasks": [
+        "T02",
+        "T03",
+        "T04"
+      ],
+      "done_when": [
+        "Artefactos son cp311/linux",
+        "Import verification pasa en container Glue 5.0 offline"
+      ]
+    },
+    {
+      "id": "WS5",
+      "title": "Deploy config, examples y documentación",
+      "tasks": [
+        "T07",
+        "T08",
+        "T09",
+        "T10"
+      ],
+      "done_when": [
+        "Todo referencia Glue 5.0 y --additional-python-modules",
+        "Smoke test pasa"
+      ]
+    }
+  ],
+  "files_to_delete": [
+    "build_glue_complete.sh",
+    "build_glue_libs_compat.sh",
+    "build_glue_libs_fixed.sh",
+    "build_package.sh"
+  ],
+  "files_to_archive": [
+    "PLAN_SONNET.md",
+    "BUILD_SYSTEM_SUMMARY.txt",
+    "GLUE_BUILD_QUICKSTART.md",
+    "WORKFLOW_DIAGRAM.txt",
+    "IMPLEMENTATION_CHECKLIST.md",
+    "0404_upload_guide.md",
+    "START_HERE.txt",
+    "CONVERSION_ISSUES_RESOLVED.md"
+  ],
+  "validation_sequence": [
+    "T01: Docker image Glue 5.0 construida con eccodes",
+    "T05: pyproject.toml alineado a Python 3.11",
+    "T02: Wheels compilados para cp311/linux",
+    "T03: .gluewheels.zip empaquetado sin dependencias Glue baseline",
+    "T04: Import verification offline en container",
+    "T10: Smoke test funcional con GRIB real"
+  ],
+  "out_of_scope": [
+    "Cambios funcionales en la lógica ETL (ecmwf.py)",
+    "Migración a DynamicFrame/Spark SQL",
+    "CI/CD pipeline (.github/workflows) — se actualizará en iteración posterior",
+    "Dockerfile de Lambda (rama ecmwf_to_bronze, runtime separado)"
+  ]
+}

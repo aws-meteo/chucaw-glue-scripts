@@ -1,0 +1,7 @@
+==========================================================
+Iniciando Automatización y Conversión Masiva a PyArrow...
+==========================================================
+▶ Procesando 20260403180000-0h-scda-fc.grib2
+  - Horizonte: 0h
+  - Fecha Particion: 20260403
+  - Salida: /mnt/c/Users/Asus/Documents/code/SbnAI/chucaw-glue-scripts/test_output_parquet/0h
