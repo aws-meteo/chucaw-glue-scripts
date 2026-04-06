@@ -139,7 +139,13 @@ cd "${WHEELS_DIR}/.."
 ZIP_NAME="glue-dependencies.gluewheels.zip"
 rm -f "${BUILD_DIR}/${ZIP_NAME}"
 cd "${BUILD_DIR}"
-zip -r -q -9 "${ZIP_NAME}" wheels/
+python3.11 -c "
+import zipfile, os
+with zipfile.ZipFile('${ZIP_NAME}', 'w', zipfile.ZIP_DEFLATED) as zf:
+    for root, dirs, files in os.walk('wheels'):
+        for file in files:
+            zf.write(os.path.join(root, file))
+"
 ZIP_SIZE=$(du -sh "${BUILD_DIR}/${ZIP_NAME}" | cut -f1)
 log_success "Created ${ZIP_NAME} (${ZIP_SIZE})"
 
