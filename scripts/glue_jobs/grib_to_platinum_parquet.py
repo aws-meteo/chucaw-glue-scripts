@@ -44,8 +44,10 @@ def main() -> None:
 
     ds = load_merged_dataset(str(grib_path))
 
-    surface_path, upper_path = serialize_parquet_chunked(
-        ds, output_dir=output_dir, date_str=date_str, run_str=run_str
+    output_filename = grib_path.with_suffix('.parquet').name
+    output_path = str(Path(output_dir) / output_filename)
+    parquet_path = serialize_parquet_chunked(
+        ds, output_path=output_path, date_str=date_str, run_str=run_str
     )
 
     print(
@@ -53,8 +55,7 @@ def main() -> None:
             "status": "ok",
             "grib_path": str(grib_path),
             "output_dir": output_dir,
-            "surface_path": surface_path,
-            "upper_path": upper_path,
+            "parquet_path": parquet_path,
             "date": date_str,
             "run": run_str,
         }

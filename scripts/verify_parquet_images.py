@@ -126,7 +126,7 @@ def compare_upper(grib_ds, parquet_path, output_img, date_str, run_str):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Compara visualmente archivos GRIB contra Parquet.")
     parser.add_argument("--grib", required=True, help="Ruta al archivo GRIB (ej: local.grib2)")
-    parser.add_argument("--parquet-dir", required=True, help="Directorio con los archivos parquet generados")
+    parser.add_argument("--parquet", required=True, help="Ruta al archivo parquet consolidado")
     parser.add_argument("--date", required=True, help="El parametro date para extraer la particion (ej: 20260330)")
     parser.add_argument("--run", required=True, help="El parametro run para extraer la particion (ej: 06z)")
     parser.add_argument("--out", default=".", help="Ruta de salida para las imágenes (opcional, omitir no guarda imgs)")
@@ -137,8 +137,7 @@ if __name__ == '__main__':
     print("Loading GRIB...")
     grib_ds = load_merged_dataset(args.grib)
     
-    surface_pq = Path(args.parquet_dir) / 'surface.parquet'
-    upper_pq = Path(args.parquet_dir) / 'upper.parquet'
+    parquet_path = Path(args.parquet)
     
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -146,12 +145,8 @@ if __name__ == '__main__':
     sf_img = None if args.no_images else out_dir / f'compare_surface_t2m_{args.run}.png'
     up_img = None if args.no_images else out_dir / f'compare_upper_z500_{args.run}.png'
     
-    if surface_pq.exists():
-        compare_surface(grib_ds, surface_pq, sf_img, args.date, args.run)
+    if parquet_path.exists():
+        compare_surface(grib_ds, parquet_path, sf_img, args.date, args.run)
+        compare_upper(grib_ds, parquet_path, up_img, args.date, args.run)
     else:
-        print(f"Warning: {surface_pq} no existe.")
-        
-    if upper_pq.exists():
-        compare_upper(grib_ds, upper_pq, up_img, args.date, args.run)
-    else:
-        print(f"Warning: {upper_pq} no existe.")
+        print(f"Error: {parquet_path} no existe.")

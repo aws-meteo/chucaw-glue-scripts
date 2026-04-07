@@ -152,24 +152,23 @@ def run_job(args: dict[str, str]) -> dict[str, str]:
     grib_path = download_grib_from_s3(bronze_bucket, bronze_key, download_dir=tmp_dir)
     ds = load_merged_dataset(grib_path)
 
-    output_dir = str(Path(tmp_dir) / "parquet")
-    surface_path, upper_path = serialize_parquet_chunked(
-        ds, output_dir=output_dir, date_str=date_str, run_str=run_str
+    output_filename = Path(bronze_key).with_suffix('.parquet').name
+    output_path = str(Path(tmp_dir) / output_filename)
+    
+    parquet_path = serialize_parquet_chunked(
+        ds, output_path=output_path, date_str=date_str, run_str=run_str
     )
     target_prefix = _partition_prefix(platinum_prefix, date_str, run_str)
 
-    surface_key = f"{target_prefix}/dataset=surface/part-000.parquet"
-    upper_key = f"{target_prefix}/dataset=upper/part-000.parquet"
-    upload_file_to_s3(surface_path, platinum_bucket, surface_key)
-    upload_file_to_s3(upper_path, platinum_bucket, upper_key)
+    parquet_key = f"{target_prefix}/{output_filename}"
+    upload_file_to_s3(parquet_path, platinum_bucket, parquet_key)
 
     return {
         "status": "ok",
         "bronze_bucket": bronze_bucket,
         "bronze_key": bronze_key,
         "platinum_bucket": platinum_bucket,
-        "surface_key": surface_key,
-        "upper_key": upper_key,
+        "parquet_key": parquet_key,
         "date": date_str,
         "run": run_str,
     }

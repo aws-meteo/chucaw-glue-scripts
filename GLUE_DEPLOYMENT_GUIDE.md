@@ -34,11 +34,11 @@ docker run --rm -v "${PWD}:/workspace" -v "${PWD}/build:/build" --entrypoint /bi
 ## 3. Subida a AWS S3 (Sincronización)
 Una vez construidos, debes colocar estos ficheros en S3 para que AWS Glue pueda consumirlos antes de encender sus nodos.
 
-En PowerShell, define tu bucket de artefactos y ejecuta (asumiendo que tu perfil AWS se llama `sbnai-admin`):
+En PowerShell, define tu bucket de artefactos y ejecuta (asumiendo que tu perfil AWS se llama `sbnai-725`):
 
 ```powershell
-$ARTIFACTS_BUCKET = "your-glue-artifacts-bucket" # REEMPLAZA ESTO
-$PROFILE = "sbnai-admin"
+$ARTIFACTS_BUCKET = "chucaw-glue-assets-725644097028-us-east-1-an"
+$PROFILE = "sbnai-725"
 
 # Subir empaquetados
 aws s3 cp .\build\glue-dependencies.gluewheels.zip "s3://$ARTIFACTS_BUCKET/libs/glue-dependencies.gluewheels.zip" --profile $PROFILE
@@ -67,10 +67,10 @@ Al final de la configuración ("Job Parameters"), debes añadir obligatoriamente
 
 Añade los parámetros usando las Key y Value exactamente así:
 
-| Key (Parameter) | Value | Razón Constructiva |
-| :--- | :--- | :--- |
-| **`--additional-python-modules`** | `s3://${ARTIFACTS_BUCKET}/libs/glue-dependencies.gluewheels.zip,s3://${ARTIFACTS_BUCKET}/libs/chucaw_preprocessor-0.1.0-py3-none-any.whl` | Mapeo exacto hacia tu Zip-of-Wheels y tu módulo de Chunking. |
-| **`--python-modules-installer-option`** | `--no-index` | **Crítico:** Instruye internamente a `pip install` a usar ÚNICAMENTE los librerías locales subidas, evadiendo errores de internet y versiones corrompidas de repos remotos. |
+| Key (Parameter)                         | Value                                                                                                                                     | Razón Constructiva                                                                                                                                                          |
+| :-------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`--additional-python-modules`**       | `s3://${ARTIFACTS_BUCKET}/libs/glue-dependencies.gluewheels.zip,s3://${ARTIFACTS_BUCKET}/libs/chucaw_preprocessor-0.1.0-py3-none-any.whl` | Mapeo exacto hacia tu Zip-of-Wheels y tu módulo de Chunking.                                                                                                                |
+| **`--python-modules-installer-option`** | `--no-index`                                                                                                                              | **Crítico:** Instruye internamente a `pip install` a usar ÚNICAMENTE los librerías locales subidas, evadiendo errores de internet y versiones corrompidas de repos remotos. |
 
 *(Nota: Reemplaza `${ARTIFACTS_BUCKET}` textualmente en las rutas de S3 dentro del panel de Glue por el nombre de tu bucket)*.
 

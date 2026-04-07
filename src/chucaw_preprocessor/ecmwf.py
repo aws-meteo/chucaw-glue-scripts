@@ -175,12 +175,10 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 
-def serialize_parquet_chunked(ds: xr.Dataset, output_dir: str, date_str: str, run_str: str) -> tuple[str, str]:
-    os.makedirs(output_dir, exist_ok=True)
-    surface_path = str(Path(output_dir) / "surface.parquet")
-    upper_path = str(Path(output_dir) / "upper.parquet")
+def serialize_parquet_chunked(ds: xr.Dataset, output_path: str, date_str: str, run_str: str) -> str:
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    surface_writer = None
+    writer = None
     for var in _SURFACE_VARS:
         if var not in ds.data_vars: continue
         ds_var = ds[[var]].to_dataframe().reset_index()
@@ -189,14 +187,13 @@ def serialize_parquet_chunked(ds: xr.Dataset, output_dir: str, date_str: str, ru
         ds_var["value"] = ds_var["value"].astype("float32")
         ds_var["date"] = date_str
         ds_var["run"] = run_str
-        cols = ["latitude", "longitude", "variable", "value", "date", "run"]
+        ds_var["isobaricInhPa"] = np.nan
+        cols = ["isobaricInhPa", "latitude", "longitude", "variable", "value", "date", "run"]
         table = pa.Table.from_pandas(ds_var[cols])
-        if surface_writer is None:
-            surface_writer = pq.ParquetWriter(surface_path, table.schema, compression="snappy")
-        surface_writer.write_table(table)
-    if surface_writer: surface_writer.close()
+        if writer is None:
+            writer = pq.ParquetWriter(output_path, table.schema, compression="snappy")
+        writer.write_table(table)
 
-    upper_writer = None
     ds_pl = ds.sel(isobaricInhPa=EXPECTED_PRESSURE_LEVELS)
     
     if "gh" in ds_pl.data_vars:
@@ -210,13 +207,12 @@ def serialize_parquet_chunked(ds: xr.Dataset, output_dir: str, date_str: str, ru
             ds_var["value"] = ds_var["value"].astype("float32")
             ds_var["date"] = date_str
             ds_var["run"] = run_str
-            # Add missing coordinate because .sel dropped it
-            ds_var["isobaricInhPa"] = p_level
+            ds_var["isobaricInhPa"] = float(p_level)
             cols = ["isobaricInhPa", "latitude", "longitude", "variable", "value", "date", "run"]
             table = pa.Table.from_pandas(ds_var[cols])
-            if upper_writer is None:
-                upper_writer = pq.ParquetWriter(upper_path, table.schema, compression="snappy")
-            upper_writer.write_table(table)
+            if writer is None:
+                writer = pq.ParquetWriter(output_path, table.schema, compression="snappy")
+            writer.write_table(table)
 
     for var in _UPPER_VARS:
         if var not in ds_pl.data_vars: continue
@@ -228,12 +224,12 @@ def serialize_parquet_chunked(ds: xr.Dataset, output_dir: str, date_str: str, ru
             ds_var["value"] = ds_var["value"].astype("float32")
             ds_var["date"] = date_str
             ds_var["run"] = run_str
-            ds_var["isobaricInhPa"] = p_level
+            ds_var["isobaricInhPa"] = float(p_level)
             cols = ["isobaricInhPa", "latitude", "longitude", "variable", "value", "date", "run"]
             table = pa.Table.from_pandas(ds_var[cols])
-            if upper_writer is None:
-                upper_writer = pq.ParquetWriter(upper_path, table.schema, compression="snappy")
-            upper_writer.write_table(table)
+            if writer is None:
+                writer = pq.ParquetWriter(output_path, table.schema, compression="snappy")
+            writer.write_table(table)
 
-    if upper_writer: upper_writer.close()
-    return surface_path, upper_path
+    if writer: writer.close()
+    return output_path
