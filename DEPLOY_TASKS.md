@@ -218,8 +218,8 @@ aws s3 ls "s3://chucaw-data-platinum-processed-725644097028-us-east-1-an/ecmwf/p
 **✅ Señal de éxito:**
 - Estado: `SUCCEEDED`
 - Aparecen archivos como:
-  - `ecmwf/parquet/year=2026/month=04/day=03/run=18z/dataset=surface/part-000.parquet`
-  - `ecmwf/parquet/year=2026/month=04/day=03/run=18z/dataset=upper/part-000.parquet`
+  - `ecmwf/parquet/year=2026/month=04/day=03/hour=18z/dataset=surface/part-000.parquet`
+  - `ecmwf/parquet/year=2026/month=04/day=03/hour=18z/dataset=upper/part-000.parquet`
 
 ---
 

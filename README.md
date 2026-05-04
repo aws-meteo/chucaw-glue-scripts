@@ -133,9 +133,9 @@ Script: `scripts/glue_jobs/pangu_to_silver.py`
 
 Salida en S3 (plata), particionada:
 
-`<SILVER_PREFIX>/year=YYYY/month=MM/day=DD/run=RRz/input_surface.npy`
+`<SILVER_PREFIX>/year=YYYY/month=MM/day=DD/hour=RRz/input_surface.npy`
 
-`<SILVER_PREFIX>/year=YYYY/month=MM/day=DD/run=RRz/input_upper.npy`
+`<SILVER_PREFIX>/year=YYYY/month=MM/day=DD/hour=RRz/input_upper.npy`
 
 ### Job: Parquet Bronze -> Platinum (recomendado)
 
@@ -159,9 +159,9 @@ Parámetros soportados:
 
 Salida en S3 (platinum), particionada:
 
-`<PLATINUM_PREFIX>/year=YYYY/month=MM/day=DD/run=RRz/dataset=surface/part-000.parquet`
+`<PLATINUM_PREFIX>/year=YYYY/month=MM/day=DD/hour=RRz/dataset=surface/part-000.parquet`
 
-`<PLATINUM_PREFIX>/year=YYYY/month=MM/day=DD/run=RRz/dataset=upper/part-000.parquet`
+`<PLATINUM_PREFIX>/year=YYYY/month=MM/day=DD/hour=RRz/dataset=upper/part-000.parquet`
 
 Ejemplo de `DefaultArguments` en Glue Studio:
 

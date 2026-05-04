@@ -21,5 +21,5 @@ def partition_prefix(base_prefix: str, date_str: str, run: str) -> str:
         / f"year={parsed.year:04d}"
         / f"month={parsed.month:02d}"
         / f"day={parsed.day:02d}"
-        / f"run={normalize_run(run)}"
+        / f"hour={normalize_run(run)}"
     ).replace("\\", "/")

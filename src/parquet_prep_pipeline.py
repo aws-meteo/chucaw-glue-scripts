@@ -144,7 +144,7 @@ def lambda_handler(event, context):
     day = date_str[6:8]
     filename = os.path.basename(parquet_file)
     s3_key = (
-        f"{output_prefix}/year={year}/month={month}/day={day}/run={run_str}/{filename}"
+        f"{output_prefix}/year={year}/month={month}/day={day}/hour={run_str}/{filename}"
     )
 
     s3 = boto3.client("s3")

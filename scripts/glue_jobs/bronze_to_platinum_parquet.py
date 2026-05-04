@@ -122,7 +122,7 @@ def _partition_prefix(base_prefix: str, date_str: str, run_str: str) -> str:
     return (
         f"{base_prefix.strip('/')}"
         f"/year={parsed.year:04d}/month={parsed.month:02d}"
-        f"/day={parsed.day:02d}/run={run_str}"
+        f"/day={parsed.day:02d}/hour={run_str}"
     ).strip("/")
 
 

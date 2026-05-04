@@ -13,8 +13,8 @@ Mover datos GRIB desde Bronze a Platinum como Parquet, usando Glue 5.0 (`glueetl
 
 El job genera salida particionada:
 
-- `ecmwf/parquet/year=YYYY/month=MM/day=DD/run=RRz/dataset=surface/part-000.parquet`
-- `ecmwf/parquet/year=YYYY/month=MM/day=DD/run=RRz/dataset=upper/part-000.parquet`
+- `ecmwf/parquet/year=YYYY/month=MM/day=DD/hour=RRz/dataset=surface/part-000.parquet`
+- `ecmwf/parquet/year=YYYY/month=MM/day=DD/hour=RRz/dataset=upper/part-000.parquet`
 
 ## 2. Archivos listos en este repo
 
