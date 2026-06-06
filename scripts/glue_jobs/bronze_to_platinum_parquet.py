@@ -152,6 +152,15 @@ def run_job(args: dict[str, str]) -> dict[str, str]:
     grib_path = download_grib_from_s3(bronze_bucket, bronze_key, download_dir=tmp_dir)
     ds = load_merged_dataset(grib_path)
 
+    # Inline statistical guardrails (Fail-Fast)
+    if "sp" in ds.data_vars:
+        sp_mean = float(ds["sp"].mean())
+        if sp_mean < 50000 or sp_mean > 110000:
+            raise RuntimeError(
+                f"Atmospheric anomaly detected in {bronze_key}: "
+                f"SP mean {sp_mean:.1f} Pa is out of physical bounds (50k-110k)."
+            )
+
     output_filename = Path(bronze_key).with_suffix('.parquet').name
     output_path = str(Path(tmp_dir) / output_filename)
     

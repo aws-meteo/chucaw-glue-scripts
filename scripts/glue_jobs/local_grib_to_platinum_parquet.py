@@ -31,7 +31,7 @@ def _extract_date_run_from_path(grib_path: str) -> tuple[str, str]:
 
 def main() -> None:
     """Convert a local GRIB file into parquet outputs."""
-    args = resolve_args(required=["GRIB_PATH"], optional=["OUTPUT_DIR", "DATE", "RUN"])
+    args = resolve_args(required=["GRIB_PATH"], optional=["OUTPUT_DIR", "DATE", "RUN", "SUBSET"])
 
     grib_path = Path(args["GRIB_PATH"]).expanduser()
     if not grib_path.exists():
@@ -41,8 +41,14 @@ def main() -> None:
     date_str = (args.get("DATE") or "").strip() or inferred_date
     run_str = _normalize_run((args.get("RUN") or "").strip() or inferred_run)
     output_dir = args.get("OUTPUT_DIR") or str(Path("/tmp") / "parquet")
+    subset = str(args.get("SUBSET") or "false").lower() == "true"
 
     ds = load_merged_dataset(str(grib_path))
+    
+    if subset:
+        print("Applying geographic subset (10x10 grid) for fast testing...")
+        # Select a small box (e.g., around 45N, 0E)
+        ds = ds.isel(latitude=slice(100, 110), longitude=slice(100, 110))
 
     output_filename = grib_path.with_suffix('.parquet').name
     output_path = str(Path(output_dir) / output_filename)
