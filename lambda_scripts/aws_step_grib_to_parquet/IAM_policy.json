@@ -1,0 +1,15 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::chucaw-data-bronze-raw-725644097028-us-east-1-an",
+                "arn:aws:s3:::chucaw-data-platinum-processed-725644097028-us-east-1-an"
+            ]
+        }
+    ]
+}
