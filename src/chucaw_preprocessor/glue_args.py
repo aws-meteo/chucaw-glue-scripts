@@ -3,12 +3,25 @@ import sys
 
 
 def resolve_args(required: list[str], optional: list[str] | None = None) -> dict[str, str]:
-    """Resolve Glue job arguments, supporting both required and optional parameters.
+    """
+    Resuelve los argumentos para un trabajo de Glue, soportando parámetros obligatorios y opcionales.
 
-    ``getResolvedOptions`` treats every key in its list as required, so we only
-    pass truly-required args to it and handle optional args separately via
-    ``parse_known_args``, which safely ignores Glue's internal injected arguments
-    (``--JOB_ID``, ``--JOB_RUN_ID``, etc.) that would otherwise crash ``parse_args``.
+    Debido a que 'getResolvedOptions' de Glue trata todas las claves como obligatorias,
+    esta función solo le pasa los argumentos estrictamente necesarios. Los opcionales
+    se manejan por separado mediante 'parse_known_args' para ignorar de forma segura
+    los argumentos internos inyectados por Glue (ej. --JOB_ID).
+
+    Parameters
+    ----------
+    required : list[str]
+        Lista de nombres de argumentos obligatorios.
+    optional : list[str] | None, opcional
+        Lista de nombres de argumentos opcionales, por defecto None.
+
+    Returns
+    -------
+    dict[str, str]
+        Diccionario con todos los argumentos resueltos y sus valores.
     """
     optional = optional or []
 
