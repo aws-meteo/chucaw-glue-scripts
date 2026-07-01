@@ -1,0 +1,14 @@
+{
+  "preprocessor_exists": true,
+  "entrypoint": "scripts/glue_jobs/platinum_parquet_to_fourcastnet.py",
+  "glue_job_name": "platinum_parquet_to_fourcastnet",
+  "latest_glue_status": "FAILED",
+  "failure_reason": "missing_channels",
+  "missing_channels": ["sp", "r@500", "r@850", "tcwv"],
+  "s3_output_prefix": "ecmwf/fourcastnet/",
+  "generated_tensors_count": 0,
+  "ram_risk_gb": 4.0,
+  "partition_row_count": 71638560,
+  "next_step": "implement_compatibility_mode_in_glue",
+  "safe_local_command": "python scripts/dev/make_fourcastnet_compatibility_fixture.py --INPUT_PARQUET <file> --MODE compatibility_fixture"
+}
