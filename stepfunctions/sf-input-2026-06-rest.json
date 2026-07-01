@@ -1,0 +1,74 @@
+{
+  "allowIncomplete": "false",
+  "jobName": "platinum_parquet_to_fourcastnet",
+  "month": "06",
+  "latitudePolicy": "drop_south_pole",
+  "leadHours": "0",
+  "partitions": [
+    {
+      "hour": "06z",
+      "day": "01"
+    },
+    {
+      "hour": "18z",
+      "day": "01"
+    },
+    {
+      "hour": "06z",
+      "day": "02"
+    },
+    {
+      "hour": "18z",
+      "day": "02"
+    },
+    {
+      "hour": "06z",
+      "day": "03"
+    },
+    {
+      "hour": "18z",
+      "day": "03"
+    },
+    {
+      "hour": "06z",
+      "day": "04"
+    },
+    {
+      "hour": "18z",
+      "day": "04"
+    },
+    {
+      "hour": "06z",
+      "day": "05"
+    },
+    {
+      "hour": "18z",
+      "day": "05"
+    },
+    {
+      "hour": "06z",
+      "day": "06"
+    },
+    {
+      "hour": "18z",
+      "day": "06"
+    },
+    {
+      "hour": "06z",
+      "day": "07"
+    },
+    {
+      "hour": "18z",
+      "day": "07"
+    },
+    {
+      "hour": "06z",
+      "day": "08"
+    },
+    {
+      "hour": "18z",
+      "day": "08"
+    }
+  ],
+  "year": "2026"
+}

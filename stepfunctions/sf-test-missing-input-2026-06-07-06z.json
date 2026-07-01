@@ -1,0 +1,14 @@
+{
+  "jobName": "platinum_parquet_to_fourcastnet",
+  "year": "2026",
+  "month": "06",
+  "leadHours": "0",
+  "allowIncomplete": "false",
+  "latitudePolicy": "drop_south_pole",
+  "partitions": [
+    {
+      "day": "07",
+      "hour": "06z"
+    }
+  ]
+}

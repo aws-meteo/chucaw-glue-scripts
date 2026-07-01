@@ -1,0 +1,11 @@
+{
+  "level": "ALL",
+  "includeExecutionData": true,
+  "destinations": [
+    {
+      "cloudWatchLogsLogGroup": {
+        "logGroupArn": "arn:aws:logs:us-east-1:725644097028:log-group:/aws/vendedlogs/states/fourcastnet-monthly-orchestrator:*"
+      }
+    }
+  ]
+}

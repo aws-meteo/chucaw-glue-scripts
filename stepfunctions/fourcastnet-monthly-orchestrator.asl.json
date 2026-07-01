@@ -1,0 +1,103 @@
+{
+  "Comment": "Sequential monthly orchestration for Glue FourCastNet partition processing. Missing input partitions are skipped.",
+  "StartAt": "BuildPartitions",
+  "States": {
+    "BuildPartitions": {
+      "Type": "Pass",
+      "Parameters": {
+        "jobName.$": "$.jobName",
+        "year.$": "$.year",
+        "month.$": "$.month",
+        "leadHours.$": "$.leadHours",
+        "allowIncomplete.$": "$.allowIncomplete",
+        "latitudePolicy.$": "$.latitudePolicy",
+        "partitions.$": "$.partitions"
+      },
+      "Next": "RunPartitionsSequentially"
+    },
+    "RunPartitionsSequentially": {
+      "Type": "Map",
+      "ItemsPath": "$.partitions",
+      "MaxConcurrency": 1,
+      "Parameters": {
+        "jobName.$": "$.jobName",
+        "year.$": "$.year",
+        "month.$": "$.month",
+        "leadHours.$": "$.leadHours",
+        "allowIncomplete.$": "$.allowIncomplete",
+        "latitudePolicy.$": "$.latitudePolicy",
+        "day.$": "$$.Map.Item.Value.day",
+        "hour.$": "$$.Map.Item.Value.hour"
+      },
+      "Iterator": {
+        "StartAt": "StartGlueJob",
+        "States": {
+          "StartGlueJob": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::glue:startJobRun.sync",
+            "Parameters": {
+              "JobName.$": "$.jobName",
+              "Arguments": {
+                "--YEAR.$": "$.year",
+                "--MONTH.$": "$.month",
+                "--DAY.$": "$.day",
+                "--HOUR.$": "$.hour",
+                "--LEAD_HOURS.$": "$.leadHours",
+                "--ALLOW_INCOMPLETE.$": "$.allowIncomplete",
+                "--LATITUDE_POLICY.$": "$.latitudePolicy"
+              }
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Glue.ConcurrentRunsExceededException",
+                  "Glue.OperationTimeoutException"
+                ],
+                "IntervalSeconds": 30,
+                "BackoffRate": 2,
+                "MaxAttempts": 4
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": [
+                  "States.ALL"
+                ],
+                "ResultPath": "$.error",
+                "Next": "ClassifyGlueFailure"
+              }
+            ],
+            "End": true
+          },
+          "ClassifyGlueFailure": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Variable": "$.error.Cause",
+                "StringMatches": "*No parquet files found under*",
+                "Next": "SkipMissingInput"
+              }
+            ],
+            "Default": "FailPartition"
+          },
+          "SkipMissingInput": {
+            "Type": "Pass",
+            "Result": {
+              "status": "SKIPPED_MISSING_INPUT"
+            },
+            "End": true
+          },
+          "FailPartition": {
+            "Type": "Fail",
+            "Error": "GluePartitionFailed",
+            "Cause": "A Glue partition run failed for a reason other than missing input. Inspect Step Functions execution history and Glue logs."
+          }
+        }
+      },
+      "Next": "Success"
+    },
+    "Success": {
+      "Type": "Succeed"
+    }
+  }
+}
