@@ -18,12 +18,13 @@ El job genera salida particionada:
 
 ## 2. Archivos listos en este repo
 
-Definiciones JSON listas para CLI:
+Config de despliegue por job en `glue/jobs/<nombre>/` (ver `glue/README.md`):
 
-- Crear job: `glue/job-definitions/create-job-bronze-to-platinum.json`
-- Actualizar job: `glue/job-definitions/update-job-bronze-to-platinum.json`
-- Ejecutar por key exacta: `glue/job-runs/start-job-run-by-key.json`
-- Ejecutar por fecha/run: `glue/job-runs/start-job-run-by-date-run.json`
+- Definición del job (crear/actualizar): `glue/jobs/bronze_to_platinum_as_parquet/job.json`
+- Ejecutar por key exacta: `glue/jobs/bronze_to_platinum_as_parquet/run.by-key.json`
+- Ejecutar por fecha/run: `glue/jobs/bronze_to_platinum_as_parquet/run.by-date-run.json`
+
+> El payload de `update-job` se deriva de `job.json` (no hay un JSON de update aparte).
 
 ## 3. Prerrequisitos AWS
 
@@ -73,34 +74,39 @@ aws s3 cp dist/glue-dependencies.gluewheels.zip s3://chucaw-glue-assets-72564409
 
 ## 6. Crear o actualizar el Glue Job
 
-Crear (primera vez):
+Los pasos 5 y 6 (subir el script a S3 + crear/actualizar el job) están automatizados por
+`scripts/deploy/deploy_glue_job.sh`, que crea el job si no existe o lo actualiza si ya
+existe (derivando el payload de update desde `job.json`):
 
-```powershell
-aws glue create-job --cli-input-json file://glue/job-definitions/create-job-bronze-to-platinum.json --region us-east-1
+```bash
+scripts/deploy/deploy_glue_job.sh glue/jobs/bronze_to_platinum_as_parquet
 ```
 
-Actualizar (siguientes cambios):
+Equivalente manual con la CLI (crear la primera vez):
 
 ```powershell
-aws glue update-job --cli-input-json file://glue/job-definitions/update-job-bronze-to-platinum.json --region us-east-1
+aws glue create-job --cli-input-json file://glue/jobs/bronze_to_platinum_as_parquet/job.json --region us-east-1
 ```
+
+En CI, el workflow `Deploy Glue Jobs` (`.github/workflows/deploy-glue-jobs.yml`) hace lo
+mismo con autenticación OIDC.
 
 ## 7. Ejecutar Job
 
 ### Opcion A: por key exacta (recomendado en produccion)
 
-Editar `glue/job-runs/start-job-run-by-key.json` con tu `--BRONZE_KEY` y ejecutar:
+Editar `glue/jobs/bronze_to_platinum_as_parquet/run.by-key.json` con tu `--BRONZE_KEY` y ejecutar:
 
 ```powershell
-aws glue start-job-run --cli-input-json file://glue/job-runs/start-job-run-by-key.json --region us-east-1
+aws glue start-job-run --cli-input-json file://glue/jobs/bronze_to_platinum_as_parquet/run.by-key.json --region us-east-1
 ```
 
 ### Opcion B: por fecha y run
 
-Editar `glue/job-runs/start-job-run-by-date-run.json` y ejecutar:
+Editar `glue/jobs/bronze_to_platinum_as_parquet/run.by-date-run.json` y ejecutar:
 
 ```powershell
-aws glue start-job-run --cli-input-json file://glue/job-runs/start-job-run-by-date-run.json --region us-east-1
+aws glue start-job-run --cli-input-json file://glue/jobs/bronze_to_platinum_as_parquet/run.by-date-run.json --region us-east-1
 ```
 
 ### Opcion C: sin key ni fecha

@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - development
+      - main
     paths:
       - "pyproject.toml"
       - "requirements.txt"
       - "requirements-glue.txt"
-      - "lista_de_glue50.txt"
+      - "docs/lista_de_glue50.txt"
       - "scripts/build_glue_artifacts.ps1"
       - "src/**"
 
@@ -32,7 +32,7 @@ jobs:
             -Python python `
             -OutputDir dist `
             -RequirementsFile requirements-glue.txt `
-            -GlueProvidedList lista_de_glue50.txt
+            -GlueProvidedList docs/lista_de_glue50.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

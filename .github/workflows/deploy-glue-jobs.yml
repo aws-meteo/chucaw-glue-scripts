@@ -1,0 +1,73 @@
+name: Deploy Glue Jobs
+
+# Uploads a Glue job script to S3 and creates/updates the Glue job definition.
+#
+# Authentication uses GitHub OIDC (no long-lived AWS keys). Configure once:
+#   - Secret  AWS_DEPLOY_ROLE_ARN : IAM role this workflow assumes. Its trust policy must
+#                                   allow the GitHub OIDC provider for this repo, and it
+#                                   needs: glue:GetJob/CreateJob/UpdateJob,
+#                                   s3:PutObject on the glue-assets bucket, and
+#                                   iam:PassRole for AWSGlueServiceRole-chucaw.
+#   - Variable AWS_REGION          : optional, defaults to us-east-1.
+#
+# Each Glue job lives in glue/jobs/<name>/ with a job.json (see glue/README.md).
+# The actual deploy logic is in scripts/deploy/deploy_glue_job.sh so the same behavior
+# runs locally and in CI.
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Which Glue job to deploy"
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - bronze_to_platinum_as_parquet
+          - bronze_to_pangu
+          - platinum_parquet_to_fourcastnet
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/glue_jobs/**"
+      - "glue/jobs/**"
+
+permissions:
+  id-token: write   # required for OIDC role assumption
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Select jobs to deploy
+        id: select
+        env:
+          # For workflow_dispatch use the chosen input; for push, deploy all.
+          REQUESTED: ${{ github.event.inputs.job || 'all' }}
+        run: |
+          if [ "$REQUESTED" = "all" ]; then
+            JOBS="bronze_to_platinum_as_parquet bronze_to_pangu platinum_parquet_to_fourcastnet"
+          else
+            JOBS="$REQUESTED"
+          fi
+          echo "jobs=$JOBS" >> "$GITHUB_OUTPUT"
+          echo "Deploying: $JOBS"
+
+      - name: Deploy
+        run: |
+          set -euo pipefail
+          for job in ${{ steps.select.outputs.jobs }}; do
+            scripts/deploy/deploy_glue_job.sh "glue/jobs/$job"
+          done

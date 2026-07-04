@@ -77,7 +77,7 @@ Use one existing GRIB only:
 
 ```powershell
 $env:PYTHONPATH='src'
-wsl.exe bash -lc "cd /mnt/c/Users/Asus/Documents/code/SbnAI/chucaw-glue-scripts && PYTHONPATH=src ./.venv311-linux/bin/python scripts/glue_jobs/local_grib_to_platinum_parquet.py --GRIB_PATH data/gribs/20260331060000-0h-scda-fc.grib2 --OUTPUT_DIR data/fourcastnet_source_real_v1 --DATE 20260331 --RUN 06z"
+wsl.exe bash -lc "cd /mnt/c/Users/Asus/Documents/code/SbnAI/chucaw-glue-scripts && PYTHONPATH=src ./.venv311-linux/bin/python scripts/glue_jobs/local/local_grib_to_platinum_parquet.py --GRIB_PATH data/gribs/20260331060000-0h-scda-fc.grib2 --OUTPUT_DIR data/fourcastnet_source_real_v1 --DATE 20260331 --RUN 06z"
 ```
 
 Expected key output:

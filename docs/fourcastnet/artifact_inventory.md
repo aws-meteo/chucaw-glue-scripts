@@ -16,7 +16,7 @@
 
 ## Glue scripts
 - `scripts/glue_jobs/platinum_parquet_to_fourcastnet.py`
-- `scripts/glue_jobs/local_parquet_to_fourcastnet.py`
+- `scripts/glue_jobs/local/local_parquet_to_fourcastnet.py`
 - `scripts/glue_jobs/audit_platinum_partition.py`
 
 ## Notebook

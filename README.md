@@ -1,241 +1,159 @@
-# chucaw-pangu-preprocessor
+# chucaw-glue-scripts
 
-Procesamiento de GRIB ECMWF para Lakehouse con AWS Glue.
+Procesamiento de GRIB ECMWF para Lakehouse con AWS Glue 5.0 (Python 3.11).
 
-## Estrategia de ramas
+Flujo de datos: **Bronze (GRIB2) → Platinum (Parquet) → tensores de modelo**
+(Pangu-Weather y FourCastNet). La lógica común de lectura/limpieza/conversión vive en la
+librería instalable `chucaw_preprocessor` (`src/chucaw_preprocessor/`), y cada job de Glue
+es un guion delgado que la usa.
 
-- `ecmwf_to_bronze`: conserva el enfoque anterior (Lambda + Docker/ECR para ingesta).
-- `development`: nueva línea de trabajo para ETL en Glue 5.0 (`glueetl`, Python 3.11) desde bronce hacia platinum.
+## Estructura del repositorio
 
-## Nueva arquitectura (development)
-
-1. Los GRIB llegan a capa bronce en S3.
-2. Jobs de AWS Glue 5.0 (`glueetl`) leen GRIB desde bronce.
-3. Se aplica la misma base de limpieza/normalización con `xarray` y `cfgrib`.
-4. Salidas a capa platinum:
-- formato Pangu (`input_surface.npy`, `input_upper.npy`)
-- formato analítico Parquet (`surface`, `upper`)
-
-## Estructura principal
-
-- `src/chucaw_preprocessor/ecmwf.py`: lógica común de lectura, limpieza y conversión.
-- `scripts/glue_jobs/pangu_to_silver.py`: job Glue para salida Pangu.
-- `scripts/glue_jobs/bronze_to_platinum_parquet.py`: job Glue principal para salida Parquet.
-- `scripts/glue_jobs/grib_to_platinum_parquet.py`: conversión local desde un GRIB en disco hacia Parquet.
-- `scripts/glue_jobs/parquet_to_silver.py`: wrapper de compatibilidad (redirige al job principal).
-- `pyproject.toml`: configuración para construir wheel del proyecto.
-- `requirements-glue.txt`: dependencias a empaquetar para Glue.
-- `scripts/build_glue_artifacts.ps1`: construcción de wheel del proyecto + bundle de dependencias Glue 5.0 (`.gluewheels.zip`) filtrado con baseline de Glue.
-
-### 🐳 Compilación de Dependencias con Docker (Glue 5.0)
-
-Para compilar las librerías nativas (`eccodes`) exactas al sistema operativo de AWS Glue 5.0 (Amazon Linux 2023, Python 3.11):
-
-1. **`Dockerfile.glue-builder`**: Entorno de compilación oficial `public.ecr.aws/glue/aws-glue-libs:5`.
-2. **`build_glue_libs.sh`**: Ejecutado dentro de Docker. Descarga wheels, filtra base packages de Glue 5.0, y arma el `.gluewheels.zip`.
-
-**Ejecución de build (primera vez):**
-```powershell
-docker build -f Dockerfile.glue-builder -t glue5-builder:latest .
-docker run --rm -v "${PWD}:/workspace" -v "${PWD}/build:/build" glue5-builder:latest "bash /workspace/build_glue_libs.sh"
 ```
-*(Ver más detalles en `boulder.json`)*
-
-## Entorno local (`.venv`)
-
-Se debe trabajar con un entorno local en la carpeta `.venv` usando las versiones fijadas en el repo.
-
-### 1) Crear `.venv` local
-
-Con `conda`:
-
-```powershell
-conda create --prefix .venv python=3.11 pip -y
+scripts/glue_jobs/     # guiones de los jobs de Glue (ver índice abajo)  →  scripts/glue_jobs/README.md
+scripts/glue_jobs/local/  # variantes locales para desarrollo (no se despliegan)
+scripts/deploy/        # deploy_glue_job.sh: sube el guion a S3 y crea/actualiza el job
+glue/jobs/<nombre>/    # config de despliegue por job (job.json + run.*.json)  →  glue/README.md
+src/chucaw_preprocessor/  # librería común (ecmwf, fourcastnet, glue_args, job_common)
+.github/workflows/     # build-glue-wheels.yml (artefactos) y deploy-glue-jobs.yml (deploy)
+docs/                  # guía de campo, docs Sphinx, reportes, archivo histórico
 ```
 
-Si `conda` no está en `PATH`:
+## Índice de jobs de Glue (en orden de pipeline)
 
-```powershell
-& "C:\ProgramData\miniconda3\Scripts\conda.exe" create --prefix .venv python=3.11 pip -y
+Todos los jobs son **Python puro** (boto3 + `xarray`/`cfgrib`/`pandas`/`pyarrow`) sobre
+Glue 5.0 como `glueetl`. Detalle de argumentos en
+[`scripts/glue_jobs/README.md`](scripts/glue_jobs/README.md).
+
+| # | Job de Glue | Guion | Entrada → Salida |
+|---|---|---|---|
+| 1 | `bronze_to_platinum_as_parquet` | [`scripts/glue_jobs/bronze_to_platinum_parquet.py`](scripts/glue_jobs/bronze_to_platinum_parquet.py) | GRIB2 → Parquet particionado (Platinum) |
+| 2 | `bronze_to_pangu` | [`scripts/glue_jobs/bronze_to_pangu.py`](scripts/glue_jobs/bronze_to_pangu.py) | GRIB2 → Pangu `input_surface.npy` + `input_upper.npy` |
+| 3 | `platinum_parquet_to_fourcastnet` | [`scripts/glue_jobs/platinum_parquet_to_fourcastnet.py`](scripts/glue_jobs/platinum_parquet_to_fourcastnet.py) | Parquet → tensor FourCastNet `.npy` + reportes |
+| — | (auditoría, bajo demanda) | [`scripts/glue_jobs/audit_platinum_partition.py`](scripts/glue_jobs/audit_platinum_partition.py) | Parquet → reportes JSON/CSV (solo lectura) |
+
+El nombre canónico de cada job (columna «Job de Glue») coincide con su carpeta bajo
+`glue/jobs/` y con el campo `Name` de su `job.json`.
+
+## Despliegue con GitHub Actions
+
+El workflow [`.github/workflows/deploy-glue-jobs.yml`](.github/workflows/deploy-glue-jobs.yml)
+sube el guion del job a S3 y **crea o actualiza** el job de Glue. Autenticación por
+**GitHub OIDC** (sin llaves de larga duración).
+
+**Ejecutar:** pestaña *Actions* → *Deploy Glue Jobs* → *Run workflow* → elegir un job o
+`all`. También corre en `push` a `main` que toque `scripts/glue_jobs/**` o `glue/jobs/**`.
+
+**Secrets / variables a configurar (una vez):**
+
+- `secrets.AWS_DEPLOY_ROLE_ARN` — rol IAM que asume el workflow vía OIDC. Su *trust policy*
+  debe permitir el proveedor OIDC de GitHub para este repo, y el rol necesita permisos:
+  `glue:GetJob/CreateJob/UpdateJob`, `s3:PutObject` sobre el bucket de artefactos de Glue,
+  e `iam:PassRole` para `AWSGlueServiceRole-chucaw`.
+- `vars.AWS_REGION` — opcional, por defecto `us-east-1`.
+
+> Nota: crear el proveedor OIDC de GitHub y el rol es un paso del lado de AWS (una vez).
+> Este workflow **no** compila el bundle de dependencias; eso sigue en `build-glue-wheels.yml`.
+
+**Deploy local equivalente** (requiere credenciales AWS y `jq`):
+
+```bash
+scripts/deploy/deploy_glue_job.sh glue/jobs/bronze_to_platinum_as_parquet
+scripts/deploy/deploy_glue_job.sh --dry-run glue/jobs/bronze_to_pangu   # imprime, no ejecuta
 ```
 
-### 2) Activar entorno
-
-```powershell
-conda activate .\.venv
-```
-
-### 3) Instalar dependencias del proyecto
-
-```powershell
-python -m pip install -r requirements.txt
-```
-
-### 4) Verificar versión de Python y paquetes
-
-```powershell
-python --version
-python -m pip list
-```
-
-## Dependencias relevantes para Glue
-
-Modelo de dependencias para Glue 5.0:
-
-- Baseline provisto por Glue (segun `lista_de_glue50.txt`): `boto3`, `numpy`, `pandas`, `pyarrow` y otras.
-- Extras empaquetadas por este repo: `xarray`, `cfgrib`, `eccodes` (mas transitivas no provistas por Glue).
-
-## Construcción de artefactos (wheel + gluewheels)
-
-Se ejecuta a través del container Docker (ver sección anterior). Genera en `build/`:
-- `chucaw_preprocessor-*.whl` (el wheel de la aplicación).
-- `glue-dependencies.gluewheels.zip` (dependencias nativas y transitivas, sin `numpy/pandas/pyarrow`).
-- `manifest.txt` con el inventario de librerías.
-
-## Configuración recomendada en AWS Glue (5.0 Offline deploy)
-
-Basado en la guía oficial de AWS Glue para librerías Python y AWS Glue 5.0:
-
-- Subir wheel del proyecto y `glue-dependencies.gluewheels.zip` a tu bucket S3.
-- Usar `job_type="glueetl"` con `GlueVersion="5.0"`.
-- Usar los artefactos con el mecanismo offline (`--no-index` y `--additional-python-modules`).
-
-Ejemplo de argumentos del Job (DefaultArguments):
-
-```text
---additional-python-modules s3://<bucket>/libs/glue-dependencies.gluewheels.zip,s3://<bucket>/libs/chucaw_preprocessor-0.1.0-py3-none-any.whl
---python-modules-installer-option --no-index
-```
-
-## Smoke test de runtime (antes de deploy)
-
-Validación local recomendada para imports y versiones base de Glue:
-
-```powershell
-& "C:\ProgramData\miniconda3\Scripts\conda.exe" run -p .venv python scripts/smoke/glue_runtime_smoke.py --strict --output-json dist/glue-runtime-smoke.json
-```
+Ver [`glue/README.md`](glue/README.md) para la estructura de config de despliegue.
 
 ## Parámetros de ejecución de jobs
 
-Parámetros comunes para jobs de salida Parquet/Pangu:
+Argumentos resueltos por `chucaw_preprocessor.glue_args.resolve_args` (funciona en Glue y
+localmente). Salidas particionadas por `year=/month=/day=/hour=RRz/`.
 
-- `--BRONZE_BUCKET`
-- `--BRONZE_KEY`
-- `--PLATINUM_BUCKET` o `--SILVER_BUCKET` (según el script)
-- `--PLATINUM_PREFIX` o `--SILVER_PREFIX` (según el script)
-- `--DATE` (formato `YYYYMMDD`)
-- `--RUN` (ej. `00z`)
-- `--TMP_DIR` (opcional, default `/tmp`)
+### 1) `bronze_to_platinum_as_parquet` (Parquet, recomendado)
 
-### Job: Pangu
-
-Script: `scripts/glue_jobs/pangu_to_silver.py`
-
-Salida en S3 (plata), particionada:
-
-`<SILVER_PREFIX>/year=YYYY/month=MM/day=DD/hour=RRz/input_surface.npy`
-
-`<SILVER_PREFIX>/year=YYYY/month=MM/day=DD/hour=RRz/input_upper.npy`
-
-### Job: Parquet Bronze -> Platinum (recomendado)
-
-Script: `scripts/glue_jobs/bronze_to_platinum_parquet.py`
-
-Buckets por defecto:
+Guion: `scripts/glue_jobs/bronze_to_platinum_parquet.py`. Buckets por defecto:
 
 - Bronze: `chucaw-data-bronze-raw-725644097028-us-east-1-an`
 - Platinum: `chucaw-data-platinum-processed-725644097028-us-east-1-an`
 
-Parámetros soportados:
+Selección del origen: `--BRONZE_KEY` (ruta exacta `.grib2`), o `--DATE`+`--RUN`, o
+autodescubrimiento del último GRIB. Otros: `--BRONZE_BUCKET`, `--BRONZE_PREFIX`,
+`--PLATINUM_BUCKET`, `--PLATINUM_PREFIX` (`ecmwf/parquet`), `--TMP_DIR`.
 
-- `--BRONZE_BUCKET` (opcional, default bucket bronze)
-- `--BRONZE_KEY` (opcional, ruta exacta `.grib2` en bronze)
-- `--BRONZE_PREFIX` (opcional, prefijo para búsqueda/listado)
-- `--PLATINUM_BUCKET` (opcional, default bucket platinum)
-- `--PLATINUM_PREFIX` (opcional, default `ecmwf/parquet`)
-- `--DATE` (opcional, `YYYYMMDD`; si no viene, infiere desde key o usa último GRIB)
-- `--RUN` (opcional, `00z/06z/12z/18z`)
-- `--TMP_DIR` (opcional, default `/tmp`)
+Salida: `<PLATINUM_PREFIX>/year=YYYY/month=MM/day=DD/hour=RRz/dataset={surface,upper}/part-000.parquet`.
 
-Salida en S3 (platinum), particionada:
+### 2) `bronze_to_pangu` (Pangu)
 
-`<PLATINUM_PREFIX>/year=YYYY/month=MM/day=DD/hour=RRz/dataset=surface/part-000.parquet`
+Guion: `scripts/glue_jobs/bronze_to_pangu.py`. Requeridos: `--BRONZE_BUCKET --BRONZE_KEY
+--SILVER_BUCKET --SILVER_PREFIX --DATE --RUN` (opcional `--TMP_DIR`).
 
-`<PLATINUM_PREFIX>/year=YYYY/month=MM/day=DD/hour=RRz/dataset=upper/part-000.parquet`
+Salida: `<SILVER_PREFIX>/year=YYYY/month=MM/day=DD/hour=RRz/{input_surface.npy,input_upper.npy}`.
 
-Ejemplo de `DefaultArguments` en Glue Studio:
+### 3) `platinum_parquet_to_fourcastnet` (FourCastNet)
+
+Guion: `scripts/glue_jobs/platinum_parquet_to_fourcastnet.py`. Requeridos: `--YEAR --MONTH
+--DAY --HOUR`. Optimizado en memoria para particiones `oper` grandes. Orquestado
+mensualmente por Step Functions (`stepfunctions/`).
+
+### Variantes locales
+
+`scripts/glue_jobs/local/` contiene runners para iterar sobre archivos locales sin S3
+(`local_grib_to_platinum_parquet.py`, `local_parquet_to_fourcastnet.py`).
+
+## Dependencias en Glue (deploy offline 5.0)
+
+El job usa el bundle offline (baseline de Glue + extras nativos):
 
 ```text
---BRONZE_BUCKET chucaw-data-bronze-raw-725644097028-us-east-1-an
---PLATINUM_BUCKET chucaw-data-platinum-processed-725644097028-us-east-1-an
---PLATINUM_PREFIX ecmwf/parquet
---BRONZE_KEY <ruta-exacta-a-tu-grib2>
-```
-
-Dependencias del job (Glue 5.0):
-
-```text
---additional-python-modules s3://<bucket>/libs/glue-dependencies.gluewheels.zip,s3://<bucket>/libs/chucaw_preprocessor-0.1.0-py3-none-any.whl
+--additional-python-modules s3://<bucket>/glue/artifacts/glue-dependencies.gluewheels.zip,s3://<bucket>/glue/artifacts/chucaw_preprocessor-0.1.0-py3-none-any.whl
 --python-modules-installer-option --no-index
 ```
 
-### Script local: GRIB -> Parquet
+- Baseline provisto por Glue (según `docs/lista_de_glue50.txt`): `boto3`, `numpy`, `pandas`,
+  `pyarrow`, etc.
+- Extras empaquetadas por este repo: `xarray`, `cfgrib`, `eccodes` (y transitivas).
 
-Script: `scripts/glue_jobs/grib_to_platinum_parquet.py`
+### 🐳 Compilación de dependencias con Docker (Glue 5.0)
 
-Uso mínimo:
+Para compilar librerías nativas (`eccodes`) contra el SO de Glue 5.0 (Amazon Linux 2023,
+Python 3.11):
 
-```text
-python scripts/glue_jobs/grib_to_platinum_parquet.py --GRIB_PATH /ruta/local/al/archivo.grib2
+```powershell
+docker build -f Dockerfile.glue-builder -t glue5-builder:latest .
+docker run --rm -v "${PWD}:/workspace" -v "${PWD}/build:/build" `
+  --entrypoint /bin/bash glue5-builder:latest /workspace/build_glue_libs.sh
 ```
 
-Parámetros soportados:
+Genera en `build/`: `chucaw_preprocessor-*.whl`, `glue-dependencies.gluewheels.zip` y un
+`manifest.txt`. El workflow `build-glue-wheels.yml` reproduce esto en CI.
 
-- `--GRIB_PATH` (requerido, ruta local al GRIB)
-- `--OUTPUT_DIR` (opcional, default `/tmp/parquet`)
-- `--DATE` (opcional, `YYYYMMDD`; si no viene, se infiere del nombre/ruta o usa la fecha actual)
-- `--RUN` (opcional, `00z/06z/12z/18z`; si no viene, se infiere del nombre/ruta o usa `00z`)
+## Entorno local (`.venv`)
 
-Salida local:
+```powershell
+conda create --prefix .venv python=3.11 pip -y
+conda activate .\.venv
+python -m pip install -r requirements.txt
+```
 
-- `<OUTPUT_DIR>/surface.parquet`
-- `<OUTPUT_DIR>/upper.parquet`
+Smoke test de runtime antes de deploy:
 
-### Nota sobre DynamicFrames
+```powershell
+python scripts/smoke/glue_runtime_smoke.py --strict --output-json dist/glue-runtime-smoke.json
+```
 
-Este job corre en runtime Spark (`glueetl`) para usar Glue 5.0 / Python 3.11, pero la transformacion sigue siendo Python puro con `xarray/pandas/pyarrow` y no usa `DynamicFrame`.  
-Si luego se requiere integracion fuerte con Catalog/Spark SQL, conviene incorporar `GlueContext` + `DynamicFrame`.
+## Nota sobre DynamicFrames
 
-## Nota de particiones
+Los jobs corren en runtime Spark (`glueetl`) para usar Glue 5.0 / Python 3.11, pero la
+transformación es Python puro con `xarray/pandas/pyarrow` y no usa `DynamicFrame`. Si más
+adelante se requiere integración fuerte con Catalog/Spark SQL, conviene incorporar
+`GlueContext` + `DynamicFrame`.
 
-Para consultas eficientes, la partición se construye por:
+## Documentación Sphinx (estilo NumPy)
 
-- `year`
-- `month`
-- `day`
-- `run`
-
-## Documentación Sphinx (NumPy style)
-
-La documentación técnica del equipo vive en `docs/sphinx` y usa:
-
-- `sphinx`
-- `napoleon` (estilo NumPy docstrings)
-- `autodoc` para módulos/scripts
-
-Instalación:
+La documentación técnica vive en `docs/sphinx` (usa `sphinx`, `napoleon`, `autodoc`).
 
 ```powershell
 python -m pip install -r requirements-docs.txt
-```
-
-Build HTML:
-
-```powershell
 cd docs/sphinx
 ..\..\.venv\Scripts\python.exe -m sphinx -b html source build/html
 ```
-
-Abrir:
-
-`docs/sphinx/build/html/index.html`
