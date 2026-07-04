@@ -24,7 +24,7 @@ for filepath in $(ls "$SOURCE_DIR"/*.grib2); do
     echo "  - Fecha Particion: $date_str"
     echo "  - Salida: $OUT_DIR"
     
-    /mnt/c/Users/Asus/Documents/code/SbnAI/chucaw-glue-scripts/.venv311-linux/bin/python /mnt/c/Users/Asus/Documents/code/SbnAI/chucaw-glue-scripts/scripts/glue_jobs/grib_to_platinum_parquet.py \
+    /mnt/c/Users/Asus/Documents/code/SbnAI/chucaw-glue-scripts/.venv311-linux/bin/python /mnt/c/Users/Asus/Documents/code/SbnAI/chucaw-glue-scripts/scripts/glue_jobs/local/local_grib_to_platinum_parquet.py \
         --GRIB_PATH "$filepath" \
         --OUTPUT_DIR "$OUT_DIR" \
         --DATE "$date_str" \

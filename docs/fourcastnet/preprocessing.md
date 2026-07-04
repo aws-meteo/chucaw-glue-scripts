@@ -137,14 +137,14 @@ Example:
 
 Script:
 
-- `scripts/glue_jobs/local_parquet_to_fourcastnet.py`
+- `scripts/glue_jobs/local/local_parquet_to_fourcastnet.py`
 
 Positive smoke (complete channels, writes tensor):
 
 ```powershell
 $env:PYTHONPATH='src'
 python scripts/dev/generate_fourcastnet_synthetic_parquet.py --OUTPUT_PATH tmp/fourcastnet_complete.parquet --COMPLETE true
-python scripts/glue_jobs/local_parquet_to_fourcastnet.py --PARQUET_PATH tmp/fourcastnet_complete.parquet --OUTPUT_DIR tmp/fourcastnet_complete_out --ALLOW_TEST_GRID true
+python scripts/glue_jobs/local/local_parquet_to_fourcastnet.py --PARQUET_PATH tmp/fourcastnet_complete.parquet --OUTPUT_DIR tmp/fourcastnet_complete_out --ALLOW_TEST_GRID true
 ```
 
 Incomplete smoke (writes reports, skips tensor):
@@ -152,7 +152,7 @@ Incomplete smoke (writes reports, skips tensor):
 ```powershell
 $env:PYTHONPATH='src'
 python scripts/dev/generate_fourcastnet_synthetic_parquet.py --OUTPUT_PATH tmp/fourcastnet_incomplete.parquet --COMPLETE false
-python scripts/glue_jobs/local_parquet_to_fourcastnet.py --PARQUET_PATH tmp/fourcastnet_incomplete.parquet --OUTPUT_DIR tmp/fourcastnet_incomplete_out --ALLOW_INCOMPLETE true --ALLOW_TEST_GRID true
+python scripts/glue_jobs/local/local_parquet_to_fourcastnet.py --PARQUET_PATH tmp/fourcastnet_incomplete.parquet --OUTPUT_DIR tmp/fourcastnet_incomplete_out --ALLOW_INCOMPLETE true --ALLOW_TEST_GRID true
 ```
 
 Local audit command for a real S3 partition (no tensor required):

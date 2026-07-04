@@ -51,7 +51,7 @@ def test_local_cli_default_latitude_policy_fail(tmp_path: Path) -> None:
     env["PYTHONPATH"] = "src"
     cmd = [
         sys.executable,
-        "scripts/glue_jobs/local_parquet_to_fourcastnet.py",
+        "scripts/glue_jobs/local/local_parquet_to_fourcastnet.py",
         "--PARQUET_PATH",
         str(parquet_path),
         "--OUTPUT_DIR",
@@ -74,7 +74,7 @@ def test_local_cli_accepts_latitude_policy_arg(tmp_path: Path) -> None:
     env["PYTHONPATH"] = "src"
     cmd = [
         sys.executable,
-        "scripts/glue_jobs/local_parquet_to_fourcastnet.py",
+        "scripts/glue_jobs/local/local_parquet_to_fourcastnet.py",
         "--PARQUET_PATH",
         str(parquet_path),
         "--OUTPUT_DIR",
