@@ -84,6 +84,7 @@ def download_grib_from_s3(bucket: str, key: str, download_dir: str = "/tmp") -> 
     str
         Ruta local completa al archivo GRIB descargado.
     """
+    Path(download_dir).mkdir(parents=True, exist_ok=True)
     local_path = str(Path(download_dir) / Path(key).name)
     s3 = boto3.client("s3")
     s3.download_file(bucket, key, local_path)

@@ -27,7 +27,3 @@ environment variables or event fields:
 - `PLATINUM_PREFIX`
 - `BRONZE_SUFFIX`
 - `PLATINUM_SUFFIX`
-
-Other tracked Lambda handlers live in `src/parquet_prep_pipeline.py` and
-`src/pangu_prep_pipeline.py`. They are direct preprocessing handlers and are not
-required by this Step Functions backfill flow.

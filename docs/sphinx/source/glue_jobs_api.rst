@@ -9,18 +9,18 @@ bronze_to_platinum_parquet
    :undoc-members:
    :show-inheritance:
 
-pangu_to_silver
+bronze_to_pangu
 ---------------
 
-.. automodule:: pangu_to_silver
+.. automodule:: bronze_to_pangu
    :members:
    :undoc-members:
    :show-inheritance:
 
-parquet_to_silver (compat)
---------------------------
+local_grib_to_platinum_parquet
+------------------------------
 
-.. automodule:: parquet_to_silver
+.. automodule:: local_grib_to_platinum_parquet
    :members:
    :undoc-members:
    :show-inheritance:

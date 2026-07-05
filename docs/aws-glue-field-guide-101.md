@@ -46,20 +46,20 @@ Config de despliegue por job en `glue/jobs/<nombre>/` (ver `glue/README.md`):
 Desde la raiz del repo:
 
 ```powershell
-./scripts/build_glue_artifacts.ps1
+docker build -f Dockerfile.glue-builder -t glue5-builder:latest .
+docker run --rm -v "${PWD}:/workspace" -v "${PWD}/build:/build" --entrypoint /bin/bash glue5-builder:latest /workspace/build_glue_libs.sh
 ```
 
-Se generan en `dist/`:
+Se generan en `build/`:
 
 - `chucaw_preprocessor-0.1.0-py3-none-any.whl`
 - `glue-dependencies.gluewheels.zip`
-- `glue-dependencies.contents.txt` (manifiesto de incluidas/excluidas)
-- `glue-wheelhouse/` con wheels Linux CPython 3.11 usadas para construir el zip
+- `manifest.txt` con el inventario de librerias
 
 Smoke test recomendado (imports + baseline Glue):
 
 ```powershell
-& "C:\ProgramData\miniconda3\Scripts\conda.exe" run -p .venv python scripts/smoke/glue_runtime_smoke.py --strict --output-json dist/glue-runtime-smoke.json
+& "C:\ProgramData\miniconda3\Scripts\conda.exe" run -p .venv python scripts/smoke/glue_runtime_smoke.py --strict --output-json build/glue-runtime-smoke.json
 ```
 
 ## 5. Subir script y artefactos a S3
@@ -67,9 +67,9 @@ Smoke test recomendado (imports + baseline Glue):
 ```powershell
 aws s3 cp scripts/glue_jobs/bronze_to_platinum_parquet.py s3://chucaw-glue-assets-725644097028-us-east-1-an/glue/scripts/bronze_to_platinum_parquet.py --region us-east-1
 
-aws s3 cp dist/chucaw_preprocessor-0.1.0-py3-none-any.whl s3://chucaw-glue-assets-725644097028-us-east-1-an/glue/artifacts/ --region us-east-1
+aws s3 cp build/chucaw_preprocessor-0.1.0-py3-none-any.whl s3://chucaw-glue-assets-725644097028-us-east-1-an/glue/artifacts/ --region us-east-1
 
-aws s3 cp dist/glue-dependencies.gluewheels.zip s3://chucaw-glue-assets-725644097028-us-east-1-an/glue/artifacts/ --region us-east-1
+aws s3 cp build/glue-dependencies.gluewheels.zip s3://chucaw-glue-assets-725644097028-us-east-1-an/glue/artifacts/ --region us-east-1
 ```
 
 ## 6. Crear o actualizar el Glue Job
@@ -138,7 +138,7 @@ aws s3 ls s3://chucaw-data-platinum-processed-725644097028-us-east-1-an/ecmwf/pa
 1. Error de imports:
 - Confirmar que el wheel del proyecto y `glue-dependencies.gluewheels.zip` existen en S3.
 - Confirmar `--additional-python-modules` y `--python-modules-installer-option --no-index`.
-- Confirmar que el zip fue construido para CPython 3.11 Linux (manifiesto en `glue-dependencies.contents.txt`).
+- Confirmar que el zip fue construido para CPython 3.11 Linux (manifiesto en `manifest.txt`).
 
 2. Error de permisos S3:
 - Revisar IAM role usado por Glue en `Role`.

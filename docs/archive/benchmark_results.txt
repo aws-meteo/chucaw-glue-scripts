@@ -1,1 +1,0 @@
-no se encontr¾ Python; ejecutar sin argumentos para instalar desde el Microsoft Store o deshabilitar este acceso directo desde Configuraci¾n > Aplicaciones > Configuraci¾n avanzada de aplicaciones > Alias de ejecuci¾n de aplicaciones.
