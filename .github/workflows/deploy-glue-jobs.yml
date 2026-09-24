@@ -27,6 +27,7 @@ on:
           - bronze_to_platinum_as_parquet
           - bronze_to_pangu
           - platinum_parquet_to_fourcastnet
+          - cfsv2_monthly_bronze_to_silver
   push:
     branches:
       - main
@@ -58,7 +59,7 @@ jobs:
           REQUESTED: ${{ github.event.inputs.job || 'all' }}
         run: |
           if [ "$REQUESTED" = "all" ]; then
-            JOBS="bronze_to_platinum_as_parquet bronze_to_pangu platinum_parquet_to_fourcastnet"
+            JOBS="bronze_to_platinum_as_parquet bronze_to_pangu platinum_parquet_to_fourcastnet cfsv2_monthly_bronze_to_silver"
           else
             JOBS="$REQUESTED"
           fi
