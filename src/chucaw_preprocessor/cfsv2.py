@@ -40,6 +40,16 @@ _REQUIRED_PARTITIONS = [
 _NOISY_COORDS = ("number", "surface", "meanSea", "entireAtmosphere", "depthBelowLandLayer")
 
 _METADATA_COLUMNS = _REQUIRED_PARTITIONS + ["lead_month", "avg_kind"]
+_GRIB_TRACE_COLUMNS = [
+    "grib_short_name",
+    "grib_name",
+    "grib_param_id",
+    "grib_discipline",
+    "grib_parameter_category",
+    "grib_parameter_number",
+    "grib_type_of_level",
+    "grib_step_type",
+]
 _OUTPUT_COLUMNS = _METADATA_COLUMNS + [
     "latitude",
     "longitude",
@@ -48,8 +58,56 @@ _OUTPUT_COLUMNS = _METADATA_COLUMNS + [
     "level_value",
     "value",
     "unit",
+    *_GRIB_TRACE_COLUMNS,
     "source_s3_uri",
 ]
+_GRIB_INTEGER_COLUMNS = [
+    "grib_param_id",
+    "grib_discipline",
+    "grib_parameter_category",
+    "grib_parameter_number",
+]
+_LOCAL_PARAM_OVERRIDES = {
+    (0, 1, 200): ("pevpr", "W m-2"),
+    (0, 3, 196): ("hpbl", "m"),
+}
+_CFGRIB_BACKEND_KWARGS = {
+    "decode_timedelta": False,
+    "read_keys": ["discipline", "parameterCategory", "parameterNumber"],
+}
+_CFGRIB_LOCAL_FILTERS = [
+    {"discipline": 0, "parameterCategory": 1, "parameterNumber": 200},
+    {"discipline": 0, "parameterCategory": 3, "parameterNumber": 196},
+]
+_DEDUPE_COLUMNS = [
+    "variable",
+    "latitude",
+    "longitude",
+    "level_type",
+    "level_value",
+    "run_date",
+    "valid_month",
+    "product_kind",
+    "avg_kind",
+]
+
+
+def _grib_attr(attrs: dict, name: str):
+    return attrs.get(f"GRIB_{name}")
+
+
+def _grib_int(attrs: dict, name: str):
+    value = _grib_attr(attrs, name)
+    return None if value is None else int(value)
+
+
+def _local_param_override(attrs: dict) -> tuple[str, str] | None:
+    keys = (
+        _grib_int(attrs, "discipline"),
+        _grib_int(attrs, "parameterCategory"),
+        _grib_int(attrs, "parameterNumber"),
+    )
+    return _LOCAL_PARAM_OVERRIDES.get(keys)
 
 
 def _compute_lead_month(run_date: str, valid_month: str) -> int:
@@ -107,6 +165,7 @@ def subset_bbox(ds: xr.Dataset, north: float, south: float, west: float, east: f
 def _variable_to_long_frame(da: xr.DataArray, var_name: str) -> pd.DataFrame:
     """Convert a single data variable into a tidy long-frame with level metadata."""
     da = da.squeeze(drop=True)
+    attrs = da.attrs
     extra_dims = [d for d in da.dims if d not in ("latitude", "longitude")]
     if len(extra_dims) > 1:
         raise ValueError(
@@ -114,7 +173,11 @@ def _variable_to_long_frame(da: xr.DataArray, var_name: str) -> pd.DataFrame:
             "expected at most one level dimension besides latitude/longitude"
         )
 
-    unit = da.attrs.get("units") or da.attrs.get("GRIB_units") or None
+    variable = var_name
+    unit = attrs.get("units") or attrs.get("GRIB_units") or None
+    override = _local_param_override(attrs)
+    if override:
+        variable, unit = override
 
     df = da.to_dataframe(name="value").reset_index()
     if extra_dims:
@@ -122,19 +185,46 @@ def _variable_to_long_frame(da: xr.DataArray, var_name: str) -> pd.DataFrame:
         df["level_type"] = level_dim
         df["level_value"] = df[level_dim].astype("float64")
     else:
-        df["level_type"] = "surface"
+        df["level_type"] = attrs.get("GRIB_typeOfLevel") or "surface"
         df["level_value"] = np.nan
 
-    df["variable"] = var_name
+    df["variable"] = variable
     df["unit"] = unit
+    df["grib_short_name"] = attrs.get("GRIB_shortName") or var_name
+    df["grib_name"] = attrs.get("GRIB_name")
+    df["grib_param_id"] = _grib_attr(attrs, "paramId")
+    df["grib_discipline"] = _grib_attr(attrs, "discipline")
+    df["grib_parameter_category"] = _grib_attr(attrs, "parameterCategory")
+    df["grib_parameter_number"] = _grib_attr(attrs, "parameterNumber")
+    df["grib_type_of_level"] = attrs.get("GRIB_typeOfLevel")
+    df["grib_step_type"] = attrs.get("GRIB_stepType")
     df["value"] = df["value"].astype("float32")
 
-    return df[["latitude", "longitude", "variable", "level_type", "level_value", "value", "unit"]]
+    return df[
+        [
+            "latitude",
+            "longitude",
+            "variable",
+            "level_type",
+            "level_value",
+            "value",
+            "unit",
+            *_GRIB_TRACE_COLUMNS,
+        ]
+    ]
 
 
 def _cast_output_schema(df: pd.DataFrame) -> pd.DataFrame:
     """Cast columns to the Silver Parquet contract dtypes."""
-    non_string_cols = {"lead_month", "latitude", "longitude", "level_value", "value", "unit"}
+    non_string_cols = {
+        "lead_month",
+        "latitude",
+        "longitude",
+        "level_value",
+        "value",
+        "unit",
+        *_GRIB_INTEGER_COLUMNS,
+    }
     for col in [c for c in _OUTPUT_COLUMNS if c not in non_string_cols]:
         df[col] = df[col].astype(str)
     df["lead_month"] = df["lead_month"].astype("int32")
@@ -142,6 +232,8 @@ def _cast_output_schema(df: pd.DataFrame) -> pd.DataFrame:
     df["longitude"] = df["longitude"].astype("float64")
     df["level_value"] = df["level_value"].astype("float64")
     df["value"] = df["value"].astype("float32")
+    for col in _GRIB_INTEGER_COLUMNS:
+        df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
     return df
 
 
@@ -172,6 +264,7 @@ def build_long_frame_from_datasets(
     long_df["source_s3_uri"] = source_s3_uri
 
     long_df = _cast_output_schema(long_df)
+    long_df = long_df.drop_duplicates(subset=_DEDUPE_COLUMNS, keep="first", ignore_index=True)
     return long_df[_OUTPUT_COLUMNS]
 
 
@@ -186,7 +279,20 @@ def process_grib_to_long_frame(
         raise ModuleNotFoundError(
             "cfgrib is required to load GRIB files. Install cfgrib/eccodes for runtime ingestion."
         )
-    datasets = cfgrib.open_datasets(grib_path, backend_kwargs={"decode_timedelta": False})
+    datasets = cfgrib.open_datasets(grib_path, backend_kwargs=_CFGRIB_BACKEND_KWARGS)
+    for filter_by_keys in _CFGRIB_LOCAL_FILTERS:
+        try:
+            datasets.append(
+                cfgrib.open_dataset(
+                    grib_path,
+                    backend_kwargs={
+                        **_CFGRIB_BACKEND_KWARGS,
+                        "filter_by_keys": filter_by_keys,
+                    },
+                )
+            )
+        except Exception:
+            pass
     return build_long_frame_from_datasets(datasets, metadata, bbox, source_s3_uri)
 
 

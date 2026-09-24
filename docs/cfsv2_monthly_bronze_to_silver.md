@@ -32,7 +32,9 @@ One Parquet file per Bronze key:
 
 Columns: `provider, product, version, run_date, cycle, member, product_kind,
 valid_month, lead_month, avg_kind, latitude, longitude, variable, level_type,
-level_value, value, unit, source_s3_uri`.
+level_value, value, unit, grib_short_name, grib_name, grib_param_id,
+grib_discipline, grib_parameter_category, grib_parameter_number,
+grib_type_of_level, grib_step_type, source_s3_uri`.
 
 - `lead_month` is the calendar-month offset from `run_date`'s month to `valid_month`.
 - `avg_kind` is `daily` by default, `6hourly` when the source filename ends in
@@ -40,11 +42,16 @@ level_value, value, unit, source_s3_uri`.
 - `level_type` is `surface` (with `level_value=null`) for variables without an
   extra vertical dimension, otherwise the GRIB level coordinate name (e.g.
   `isobaricInhPa`) with `level_value` set per row.
+- `grib_*` columns preserve GRIB identity metadata used to map NOAA local CFSv2
+  parameters such as PEVPR `(0,1,200)` and HPBL `(0,3,196)`.
 
 ## Processing notes
 
-- Opens GRIB with `cfgrib.open_datasets(..., backend_kwargs={"decode_timedelta": False})`
-  and converts each returned dataset independently — messages are not force-merged.
+- Opens GRIB with `cfgrib.open_datasets(..., backend_kwargs={"decode_timedelta": False,
+  "read_keys": ["discipline", "parameterCategory", "parameterNumber"]})` and converts
+  each returned dataset independently — messages are not force-merged. It also opens
+  explicit CFSv2 local-parameter filters for PEVPR and HPBL, then deduplicates after
+  variables are identified.
 - Bbox subsetting tolerates both -180..180 and 0..360 longitude conventions and
   is applied before any conversion to pandas, to keep memory bounded.
 - Fails fast (`ValueError`) if the key can't be parsed or the bbox selects no data.
