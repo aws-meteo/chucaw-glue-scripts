@@ -29,6 +29,7 @@ Glue 5.0 como `glueetl`. Detalle de argumentos en
 |---|---|---|---|
 | 1 | `bronze_to_platinum_as_parquet` | [`scripts/glue_jobs/bronze_to_platinum_parquet.py`](scripts/glue_jobs/bronze_to_platinum_parquet.py) | GRIB2 → Parquet particionado (Platinum) |
 | 2 | `bronze_to_pangu` | [`scripts/glue_jobs/bronze_to_pangu.py`](scripts/glue_jobs/bronze_to_pangu.py) | GRIB2 → Pangu `input_surface.npy` + `input_upper.npy` |
+| 2b | `cfsv2_monthly_bronze_to_silver` | [`scripts/glue_jobs/cfsv2_monthly_bronze_to_silver.py`](scripts/glue_jobs/cfsv2_monthly_bronze_to_silver.py) | GRIB2 → Parquet de CFSv2 long-frame (Silver) |
 | 3 | `platinum_parquet_to_fourcastnet` | [`scripts/glue_jobs/platinum_parquet_to_fourcastnet.py`](scripts/glue_jobs/platinum_parquet_to_fourcastnet.py) | Parquet → tensor FourCastNet `.npy` + reportes |
 | — | (auditoría, bajo demanda) | [`scripts/glue_jobs/audit_platinum_partition.py`](scripts/glue_jobs/audit_platinum_partition.py) | Parquet → reportes JSON/CSV (solo lectura) |
 
@@ -88,6 +89,12 @@ Guion: `scripts/glue_jobs/bronze_to_pangu.py`. Requeridos: `--BRONZE_BUCKET --BR
 --SILVER_BUCKET --SILVER_PREFIX --DATE --RUN` (opcional `--TMP_DIR`).
 
 Salida: `<SILVER_PREFIX>/year=YYYY/month=MM/day=DD/hour=RRz/{input_surface.npy,input_upper.npy}`.
+
+### 2b) `cfsv2_monthly_bronze_to_silver` (CFSv2)
+
+Guion: `scripts/glue_jobs/cfsv2_monthly_bronze_to_silver.py`. Requeridos: `--BRONZE_KEY --BRONZE_BUCKET --SILVER_BUCKET --SILVER_PREFIX` (opcional `--TMP_DIR`).
+
+Salida: `<SILVER_PREFIX>/run_date=YYYYMMDD/cycle=HH/member=XX/product_kind=KIND/valid_month=YYYYMM/avg_kind=KIND/part-000.parquet`.
 
 ### 3) `platinum_parquet_to_fourcastnet` (FourCastNet)
 

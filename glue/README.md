@@ -15,6 +15,7 @@ The **folder name is the canonical Glue job name** and must match `job.json`'s `
 | `bronze_to_platinum_as_parquet` | `scripts/glue_jobs/bronze_to_platinum_parquet.py` | Bronze GRIB2 → Platinum Parquet |
 | `bronze_to_pangu` | `scripts/glue_jobs/bronze_to_pangu.py` | Bronze GRIB2 → Pangu `.npy` |
 | `platinum_parquet_to_fourcastnet` | `scripts/glue_jobs/platinum_parquet_to_fourcastnet.py` | Platinum Parquet → FourCastNet tensor |
+| `cfsv2_monthly_bronze_to_silver` | `scripts/glue_jobs/cfsv2_monthly_bronze_to_silver.py` | CFSv2 Monthly Bronze GRIB2 → Silver Parquet |
 
 ## How `job.json` maps to a deploy
 

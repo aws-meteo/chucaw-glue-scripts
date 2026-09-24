@@ -9,6 +9,7 @@ they run on **Glue 5.0 / Python 3.11** as `glueetl`. Data flows
 |---|---|---|---|---|
 | 1 | [`bronze_to_platinum_parquet.py`](bronze_to_platinum_parquet.py) | Bronze → Platinum | GRIB2 → tidy Parquet (partitioned) | [`glue/jobs/bronze_to_platinum_as_parquet/`](../../glue/jobs/bronze_to_platinum_as_parquet/) |
 | 2 | [`bronze_to_pangu.py`](bronze_to_pangu.py) | Bronze → Silver | GRIB2 → Pangu `input_surface.npy` + `input_upper.npy` | [`glue/jobs/bronze_to_pangu/`](../../glue/jobs/bronze_to_pangu/) |
+| 2b | [`cfsv2_monthly_bronze_to_silver.py`](cfsv2_monthly_bronze_to_silver.py) | Bronze → Silver (CFSv2) | CFSv2 GRIB2 → Silver Parquet long-frame | [`glue/jobs/cfsv2_monthly_bronze_to_silver/`](../../glue/jobs/cfsv2_monthly_bronze_to_silver/) |
 | 3 | [`platinum_parquet_to_fourcastnet.py`](platinum_parquet_to_fourcastnet.py) | Platinum → FourCastNet | Parquet partition → FCN tensor `.npy` + reports | [`glue/jobs/platinum_parquet_to_fourcastnet/`](../../glue/jobs/platinum_parquet_to_fourcastnet/) |
 | 4 | [`audit_platinum_partition.py`](audit_platinum_partition.py) | audit (read-only) | Parquet partition → readiness JSON/CSV | — (run on demand) |
 
@@ -21,6 +22,7 @@ Passed as Glue job args (`--NAME value`) and resolved by
   with `--BRONZE_KEY`, or `--DATE`+`--RUN`, or let it auto-discover the latest `.grib2`.
 - **2 · bronze_to_pangu** — required: `--BRONZE_BUCKET --BRONZE_KEY --SILVER_BUCKET
   --SILVER_PREFIX --DATE --RUN` (optional `--TMP_DIR`).
+- **2b · cfsv2_monthly_bronze_to_silver** — processes monthly CFSv2 raw GRIB to Silver Parquet long-frame. Requires `--BRONZE_KEY --BRONZE_BUCKET --SILVER_BUCKET --SILVER_PREFIX` (optional `--TMP_DIR`).
 - **3 · platinum_parquet_to_fourcastnet** — required: `--YEAR --MONTH --DAY --HOUR`
   (buckets/prefixes and contract options are optional). Memory-optimized for large
   `oper` partitions.
